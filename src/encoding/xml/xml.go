@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+//go:build !goexperiment.xmlv2
+
 // Package xml implements a simple XML 1.0 parser that
 // understands XML name spaces.
 package xml

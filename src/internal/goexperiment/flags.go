@@ -106,6 +106,9 @@ type Flags struct {
 	// JSONv2 enables the json/v2 package.
 	JSONv2 bool
 
+	// XMLv2 enables the xml/v2 prototype (encoding/xml/xmltext and v1-on-v2 encoding/xml).
+	XMLv2 bool
+
 	// GreenTeaGC enables the Green Tea GC implementation.
 	GreenTeaGC bool
 

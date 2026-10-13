@@ -274,7 +274,18 @@ var depsRules = `
 	FMT, encoding, encoding/base32, encoding/base64, encoding/binary,
 	internal/saferio
 	< encoding/ascii85, encoding/csv, encoding/gob, encoding/hex,
-	  encoding/pem, encoding/xml, mime;
+	  encoding/pem, mime;
+
+	# encoding/xml is v1-on-v2 under GOEXPERIMENT=xmlv2; xmltext and its
+	# helpers are only built with that experiment.
+	FMT, encoding
+	< encoding/xml/internal/legacyxml;
+
+	FMT, encoding, encoding/binary
+	< encoding/xml/internal/xmlname
+	< encoding/xml/internal/xmlopts
+	< encoding/xml/xmltext
+	< encoding/xml;
 
 	STR, errors
 	< encoding/json/internal
