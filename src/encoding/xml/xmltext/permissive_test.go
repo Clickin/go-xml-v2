@@ -1,3 +1,7 @@
+// Copyright 2026 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 //go:build goexperiment.xmlv2
 
 package xmltext
@@ -8,18 +12,16 @@ import (
 	"strings"
 	"testing"
 	"testing/iotest"
-
-	stdxml "encoding/xml/internal/legacyxml"
 )
 
-// legacyCfg selects the legacy Decoder settings a permissive profile maps to.
-type legacyCfg struct {
+// compatibilityCfg selects the legacy Decoder settings a permissive profile maps to.
+type compatibilityCfg struct {
 	strict    bool
 	autoClose []string
 	entity    map[string]string
 }
 
-func (c legacyCfg) options() []Options {
+func (c compatibilityCfg) options() []Options {
 	o := []Options{Permissive(true)}
 	if !c.strict {
 		o = []Options{Loose(true)}
@@ -33,58 +35,9 @@ func (c legacyCfg) options() []Options {
 	return o
 }
 
-// legacyRun tokenizes in with the frozen v1 decoder.
-func legacyRun(in string, c legacyCfg) ([]tok, error) {
-	d := stdxml.NewDecoder(strings.NewReader(in))
-	d.Strict = c.strict
-	d.AutoClose = c.autoClose
-	d.Entity = c.entity
-	raws := stdRawAttrs(in, c.strict, c.autoClose, c.entity)
-	var out []tok
-	nStart := 0
-	for {
-		tk, err := d.Token()
-		if err == io.EOF {
-			return out, nil
-		}
-		if err != nil {
-			return out, err
-		}
-		switch v := tk.(type) {
-		case stdxml.StartElement:
-			x := tok{kind: StartElement, name: Name{v.Name.Space, v.Name.Local}}
-			var raw []stdxml.Name
-			if nStart < len(raws) {
-				raw = raws[nStart]
-			}
-			nStart++
-			for i, a := range v.Attr {
-				var rn stdxml.Name
-				if i < len(raw) {
-					rn = raw[i]
-				}
-				x.attrs = append(x.attrs, Attr{stdAttrName(a.Name, rn), a.Value})
-			}
-			out = append(out, x)
-		case stdxml.EndElement:
-			out = append(out, tok{kind: EndElement, name: Name{v.Name.Space, v.Name.Local}})
-		case stdxml.CharData:
-			out = append(out, tok{kind: Text, text: string(v)})
-		case stdxml.Comment:
-			out = append(out, tok{kind: Comment, text: string(v)})
-		case stdxml.ProcInst:
-			out = append(out, tok{kind: ProcInst, name: Name{Local: v.Target}, text: string(v.Inst)})
-		case stdxml.Directive:
-			out = append(out, tok{kind: Directive, text: string(v)})
-		}
-	}
-}
-
-// diffLegacy reports a description of the first difference between legacy
-// and xmltext on in, or "" if they agree. Every legacy-accepted input
-// must be accepted with equal tokens.
-func diffLegacy(t testing.TB, in string, c legacyCfg) string {
-	want, werr := legacyRun(in, c)
+// diffExpected compares tokens and acceptance with the fixed expectations.
+func diffExpected(t testing.TB, in string, c compatibilityCfg) string {
+	want, werr := fixedTokens(in, c)
 	got, gerr := readAll2(NewDecoderBytes([]byte(in), c.options()...))
 	w, g := normalize(want), normalize(got)
 	if werr != nil && gerr != nil {
@@ -92,12 +45,12 @@ func diffLegacy(t testing.TB, in string, c legacyCfg) string {
 		// token cut short by the error may be missing on one side.
 		n := min(len(w), len(g))
 		if fmt.Sprint(w[:n]) != fmt.Sprint(g[:n]) {
-			return fmt.Sprintf("prefix differs\n legacy %v (%v)\n xmltext %v (%v)", w, werr, g, gerr)
+			return fmt.Sprintf("prefix differs\n expected %v (%v)\n xmltext %v (%v)", w, werr, g, gerr)
 		}
 		return ""
 	}
 	if (werr == nil) != (gerr == nil) || fmt.Sprint(w) != fmt.Sprint(g) {
-		return fmt.Sprintf("legacy %v err=%v\nxmltext %v err=%v", w, werr, g, gerr)
+		return fmt.Sprintf("expected %v err=%v\nxmltext %v err=%v", w, werr, g, gerr)
 	}
 	return ""
 }
@@ -108,11 +61,11 @@ func readAll2(d *Decoder) ([]tok, error) { return readAll(nil, d) }
 type ruleCase struct {
 	rule string
 	in   string
-	cfg  legacyCfg
+	cfg  compatibilityCfg
 }
 
-var strictCfg = legacyCfg{strict: true}
-var looseCfg = legacyCfg{}
+var strictCfg = compatibilityCfg{strict: true}
+var looseCfg = compatibilityCfg{}
 
 var htmlAuto = []string{"br", "hr", "img", "input", "meta", "p", "li"}
 
@@ -219,20 +172,20 @@ var ruleCases = []ruleCase{
 	{"loose mismatch prefix2", `<a:x xmlns:a="u" xmlns:b="v"></b:x>`, looseCfg},
 	{"loose mismatch ns", `<r xmlns:a="u"><a:x><a:y></a:x></r>`, looseCfg},
 	{"loose eof open", `<a><b>`, looseCfg},
-	{"loose html", `<html><body><p>one<p>two<br>x<br/>y<img src=a.png alt="b"></body></html>`, legacyCfg{autoClose: htmlAuto}},
-	{"loose html entities", `<p>&nbsp;&copy;&eacute;&unknown;</p>`, legacyCfg{autoClose: htmlAuto, entity: htmlEntity}},
-	{"autoclose end tag", `<a><br></br><br></BR>x</a>`, legacyCfg{autoClose: htmlAuto}},
-	{"autoclose case end", `<a><BR></br>x</a>`, legacyCfg{autoClose: htmlAuto}},
-	{"autoclose text", `<br>text`, legacyCfg{autoClose: htmlAuto}},
-	{"autoclose comment", `<a><br><!--c--><?p d?></a>`, legacyCfg{autoClose: htmlAuto}},
-	{"autoclose eof", `<a><br>`, legacyCfg{autoClose: htmlAuto}},
-	{"autoclose nested", `<p><p><p>`, legacyCfg{autoClose: htmlAuto}},
-	{"autoclose bad next", "<a><br>\x01</a>", legacyCfg{autoClose: htmlAuto}},
-	{"autoclose bad end", `<a><br></a x></a>`, legacyCfg{autoClose: htmlAuto}},
-	{"autoclose prefix", `<a><x:br xmlns:x="u"><b/></a>`, legacyCfg{autoClose: htmlAuto}},
-	{"autoclose selfclose", `<a><br/><br/></a>`, legacyCfg{autoClose: htmlAuto}},
-	{"autoclose end of parent", `<a><li>x</a>`, legacyCfg{autoClose: htmlAuto}},
-	{"autoclose start in start", `<li><li x="1">a</li></li>`, legacyCfg{autoClose: htmlAuto}},
+	{"loose html", `<html><body><p>one<p>two<br>x<br/>y<img src=a.png alt="b"></body></html>`, compatibilityCfg{autoClose: htmlAuto}},
+	{"loose html entities", `<p>&nbsp;&copy;&eacute;&unknown;</p>`, compatibilityCfg{autoClose: htmlAuto, entity: htmlEntity}},
+	{"autoclose end tag", `<a><br></br><br></BR>x</a>`, compatibilityCfg{autoClose: htmlAuto}},
+	{"autoclose case end", `<a><BR></br>x</a>`, compatibilityCfg{autoClose: htmlAuto}},
+	{"autoclose text", `<br>text`, compatibilityCfg{autoClose: htmlAuto}},
+	{"autoclose comment", `<a><br><!--c--><?p d?></a>`, compatibilityCfg{autoClose: htmlAuto}},
+	{"autoclose eof", `<a><br>`, compatibilityCfg{autoClose: htmlAuto}},
+	{"autoclose nested", `<p><p><p>`, compatibilityCfg{autoClose: htmlAuto}},
+	{"autoclose bad next", "<a><br>\x01</a>", compatibilityCfg{autoClose: htmlAuto}},
+	{"autoclose bad end", `<a><br></a x></a>`, compatibilityCfg{autoClose: htmlAuto}},
+	{"autoclose prefix", `<a><x:br xmlns:x="u"><b/></a>`, compatibilityCfg{autoClose: htmlAuto}},
+	{"autoclose selfclose", `<a><br/><br/></a>`, compatibilityCfg{autoClose: htmlAuto}},
+	{"autoclose end of parent", `<a><li>x</a>`, compatibilityCfg{autoClose: htmlAuto}},
+	{"autoclose start in start", `<li><li x="1">a</li></li>`, compatibilityCfg{autoClose: htmlAuto}},
 	{"loose comment double dash", `<a><!-- a -- b --></a>`, looseCfg},
 	{"loose bracket", `<a>]]></a>`, looseCfg},
 	{"loose multiple roots", `<a/>x<b/>`, looseCfg},
@@ -240,14 +193,14 @@ var ruleCases = []ruleCase{
 }
 
 func TestLegacyHTMLSettings(t *testing.T) {
-	c := legacyCfg{autoClose: stdxml.HTMLAutoClose, entity: stdxml.HTMLEntity}
+	c := compatibilityCfg{autoClose: []string{"p", "br", "img"}, entity: map[string]string{"nbsp": "\u00a0", "copy": "©", "Alpha": "Α"}}
 	in := `<html><body><p>&nbsp;&copy;&Alpha;</p><BR>tail<img src="a.png"></body></html>`
-	if diff := diffLegacy(t, in, c); diff != "" {
+	if diff := diffExpected(t, in, c); diff != "" {
 		t.Fatal(diff)
 	}
 	for _, in := range []string{`<a>&#` + strings.Repeat("0", 100) + `65;</a>`, `<a>&#4294967296;</a>`, `<a><A xmlns></a>`, `&`, `&amp`} {
-		for _, cfg := range []legacyCfg{strictCfg, looseCfg} {
-			if diff := diffLegacy(t, in, cfg); diff != "" {
+		for _, cfg := range []compatibilityCfg{strictCfg, looseCfg} {
+			if diff := diffExpected(t, in, cfg); diff != "" {
 				t.Fatalf("%q: %s", in, diff)
 			}
 		}
@@ -256,7 +209,7 @@ func TestLegacyHTMLSettings(t *testing.T) {
 
 func TestPermissiveRules(t *testing.T) {
 	for _, c := range ruleCases {
-		if d := diffLegacy(t, c.in, c.cfg); d != "" {
+		if d := diffExpected(t, c.in, c.cfg); d != "" {
 			t.Errorf("%s: %q\n%s", c.rule, c.in, d)
 		}
 	}
@@ -299,9 +252,11 @@ func FuzzPermissive(f *testing.F) {
 		f.Add(s, byte(1))
 	}
 	f.Fuzz(func(t *testing.T, in string, mode byte) {
-		c := []legacyCfg{strictCfg, looseCfg, {autoClose: htmlAuto, entity: htmlEntity}}[int(mode)%3]
-		if d := diffLegacy(t, in, c); d != "" {
-			t.Fatalf("%q\n%s", in, d)
+		c := []compatibilityCfg{strictCfg, looseCfg, {autoClose: htmlAuto, entity: htmlEntity}}[int(mode)%3]
+		a, ae := readAll2(NewDecoderBytes([]byte(in), c.options()...))
+		b, be := readAll2(NewDecoder(iotest.OneByteReader(strings.NewReader(in)), c.options()...))
+		if (ae == nil) != (be == nil) || ae == nil && fmt.Sprint(normalize(a)) != fmt.Sprint(normalize(b)) {
+			t.Fatalf("chunked mismatch: %v / %v\n%v\n%v", ae, be, a, b)
 		}
 	})
 }

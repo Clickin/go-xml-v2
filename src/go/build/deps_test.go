@@ -278,9 +278,6 @@ var depsRules = `
 
 	# encoding/xml is v1-on-v2 under GOEXPERIMENT=xmlv2; xmltext and its
 	# helpers are only built with that experiment.
-	FMT, encoding
-	< encoding/xml/internal/legacyxml;
-
 	FMT, encoding, encoding/binary
 	< encoding/xml/internal/xmlname
 	< encoding/xml/internal/xmlopts

@@ -1,3 +1,7 @@
+// Copyright 2026 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 //go:build goexperiment.xmlv2
 
 package xmltext
@@ -51,9 +55,9 @@ func TestNameProfiles(t *testing.T) {
 				}
 			}
 			for _, strict := range []bool{true, false} {
-				cfg := legacyCfg{strict: strict, entity: map[string]string{tc.name: "replacement"}}
+				cfg := compatibilityCfg{strict: strict, entity: map[string]string{tc.name: "replacement"}}
 				for _, in := range []string{"<r>&" + tc.name + ";</r>", "<r k=\"&" + tc.name + ";\"/>"} {
-					if diff := diffLegacy(t, in, cfg); diff != "" {
+					if diff := diffExpected(t, in, cfg); diff != "" {
 						t.Errorf("entity strict=%v input=%q: %s", strict, in, diff)
 					}
 				}

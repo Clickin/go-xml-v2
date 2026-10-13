@@ -1,3 +1,7 @@
+// Copyright 2026 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 //go:build goexperiment.xmlv2
 
 package xmltext
@@ -107,7 +111,7 @@ func TestTextStreamingEdges(t *testing.T) {
 	for _, edge := range []string{"&amp;", "&#x1F600;", "한", "😀", "\r\n", "]]>", "]]x", "&bogus;", "\xf0\x9f", "&"} {
 		for split := 0; split <= len(edge); split++ {
 			in := "<r>" + strings.Repeat("x", (32<<10)-split) + edge + "</r>"
-			want, wantErr := stdTokens(t, in)
+			want, wantErr := expectedTokens(t, in)
 			for _, splitText := range []bool{false, true} {
 				for _, chunk := range []int{0, 1, 2, 3, 7, 16, 4096} {
 					var d *Decoder
@@ -161,7 +165,7 @@ func TestMaxTokenSizeStreaming(t *testing.T) {
 				t.Fatalf("wrong limit error: %v", err)
 			}
 			if !c.fail {
-				want, _ := stdTokens(t, c.in)
+				want, _ := expectedTokens(t, c.in)
 				if fmt.Sprint(normalize(got)) != fmt.Sprint(normalize(want)) {
 					t.Fatalf("bounded text differs: %v", got)
 				}

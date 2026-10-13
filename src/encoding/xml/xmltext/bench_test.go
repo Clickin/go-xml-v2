@@ -1,12 +1,13 @@
+// Copyright 2026 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 //go:build goexperiment.xmlv2
 
 package xmltext
 
 import (
 	"bytes"
-	stdxml "encoding/xml/internal/legacyxml"
-	"fmt"
-	"io"
 	"strings"
 	"testing"
 )
@@ -64,35 +65,8 @@ func BenchmarkReadToken(b *testing.B) {
 				}
 			}
 		})
-		b.Run(name+"/std-Token", func(b *testing.B) {
-			b.SetBytes(int64(len(doc)))
-			b.ReportAllocs()
-			for b.Loop() {
-				d := stdxml.NewDecoder(bytes.NewReader(doc))
-				for {
-					if _, err := d.Token(); err != nil {
-						break
-					}
-				}
-			}
-		})
-		b.Run(name+"/std-RawToken", func(b *testing.B) {
-			b.SetBytes(int64(len(doc)))
-			b.ReportAllocs()
-			for b.Loop() {
-				d := stdxml.NewDecoder(bytes.NewReader(doc))
-				for {
-					if _, err := d.RawToken(); err != nil {
-						break
-					}
-				}
-			}
-		})
 	}
 }
-
-var _ = fmt.Sprint
-var _ = io.EOF
 
 // BenchmarkAttrNames reads attribute names (resolved), the path a namespace
 // declaration check on AttrIter.Name would slow down.

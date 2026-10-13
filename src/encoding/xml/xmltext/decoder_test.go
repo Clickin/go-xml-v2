@@ -1,10 +1,13 @@
+// Copyright 2026 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 //go:build goexperiment.xmlv2
 
 package xmltext
 
 import (
 	"bytes"
-	stdxml "encoding/xml/internal/legacyxml"
 	"fmt"
 	"io"
 	"strings"
@@ -61,95 +64,6 @@ func readAll(t *testing.T, d *Decoder) ([]tok, error) {
 	}
 }
 
-// stdRawAttrs returns the lexical attribute names (prefix in Space) of each
-// start element of in. std's Token() reports a declaration as {"xmlns", prefix}
-// or {"", "xmlns"}, which is also what q:foo gets when q is bound to the URI
-// "xmlns", and it loses the prefix of an attribute bound to the xmlns URI; only
-// RawToken's lexical names tell these apart. strict, autoClose and entity
-// configure the decoder as for Token().
-func stdRawAttrs(in string, strict bool, autoClose []string, entity map[string]string) [][]stdxml.Name {
-	d := stdxml.NewDecoder(strings.NewReader(in))
-	d.Strict, d.AutoClose, d.Entity = strict, autoClose, entity
-	var out [][]stdxml.Name
-	for {
-		tk, err := d.RawToken()
-		if err != nil {
-			return out
-		}
-		if v, ok := tk.(stdxml.StartElement); ok {
-			names := make([]stdxml.Name, len(v.Attr))
-			for i, a := range v.Attr {
-				names[i] = a.Name
-			}
-			out = append(out, names)
-		}
-	}
-}
-
-// stdAttrName converts the name of one of std's attributes (raw is its lexical
-// name) to xmltext's convention: a declaration is named by the xmlns namespace
-// (xmlns="u" is {XMLNSNamespace, "xmlns"}), and a permissive xmlns:xmlns keeps the
-// prefix as its Space. Intended difference: an attribute whose prefix is bound
-// to the xmlns URI is reported like an unbound one, by its prefix, because only
-// declarations have that Space.
-func stdAttrName(n, raw stdxml.Name) Name {
-	switch {
-	case raw.Space != "xmlns" && !(raw.Space == "" && raw.Local == "xmlns"):
-		if n.Space == XMLNSNamespace {
-			return Name{raw.Space, n.Local}
-		}
-		return Name{n.Space, n.Local}
-	case n.Space == "":
-		return Name{XMLNSNamespace, "xmlns"}
-	case n.Local == "xmlns":
-		return Name{"xmlns", "xmlns"}
-	}
-	return Name{XMLNSNamespace, n.Local}
-}
-
-func stdTokens(t *testing.T, in string) ([]tok, error) {
-	d := stdxml.NewDecoder(strings.NewReader(in))
-	raws := stdRawAttrs(in, true, nil, nil)
-	var out []tok
-	nStart := 0
-	for {
-		tk, err := d.Token()
-		if err == io.EOF {
-			return out, nil
-		}
-		if err != nil {
-			return out, err
-		}
-		switch v := tk.(type) {
-		case stdxml.StartElement:
-			x := tok{kind: StartElement, name: Name{v.Name.Space, v.Name.Local}}
-			var raw []stdxml.Name
-			if nStart < len(raws) {
-				raw = raws[nStart]
-			}
-			nStart++
-			for i, a := range v.Attr {
-				var rn stdxml.Name
-				if i < len(raw) {
-					rn = raw[i]
-				}
-				x.attrs = append(x.attrs, Attr{stdAttrName(a.Name, rn), a.Value})
-			}
-			out = append(out, x)
-		case stdxml.EndElement:
-			out = append(out, tok{kind: EndElement, name: Name{v.Name.Space, v.Name.Local}})
-		case stdxml.CharData:
-			out = append(out, tok{kind: Text, text: string(v)})
-		case stdxml.Comment:
-			out = append(out, tok{kind: Comment, text: string(v)})
-		case stdxml.ProcInst:
-			out = append(out, tok{kind: ProcInst, name: Name{Local: v.Target}, text: string(v.Inst)})
-		case stdxml.Directive:
-			out = append(out, tok{kind: Directive, text: string(v)})
-		}
-	}
-}
-
 // normalize merges adjacent Text/CData (std reports both as CharData).
 func normalize(in []tok) []tok {
 	var out []tok
@@ -177,9 +91,9 @@ func readers(in string) map[string]func() *Decoder {
 	}
 }
 
-func TestMatchesStd(t *testing.T) {
+func TestDecoderExpectedTokens(t *testing.T) {
 	for i, in := range corpus {
-		want, err := stdTokens(t, in)
+		want, err := expectedTokens(t, in)
 		if err != nil {
 			t.Fatalf("corpus %d: std: %v", i, err)
 		}

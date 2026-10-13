@@ -1,3 +1,7 @@
+// Copyright 2026 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 //go:build goexperiment.xmlv2
 
 package xmltext
@@ -285,7 +289,7 @@ func TestStrictProfileConformance(t *testing.T) {
 
 			// encoding/xml and the permissive profile, where std accepts the input,
 			// must agree; they keep whatever the default profile normalizes or rejects.
-			want, serr := stdTokens(t, c.in)
+			want, serr := expectedTokens(t, c.in)
 			if serr != nil {
 				return
 			}
@@ -313,7 +317,7 @@ func TestPermissiveKeepsStdReading(t *testing.T) {
 		"<r a=\"x\ny\tz\r\nw\"/>",
 		`<r>&#0000000065;</r>`,
 	} {
-		want, serr := stdTokens(t, in)
+		want, serr := expectedTokens(t, in)
 		if serr != nil {
 			t.Fatalf("encoding/xml rejects %q: %v", in, serr)
 		}

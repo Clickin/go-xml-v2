@@ -1,3 +1,7 @@
+// Copyright 2026 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 //go:build goexperiment.xmlv2
 
 package xmltext
@@ -97,11 +101,11 @@ func TestStrictNamespaceRules(t *testing.T) {
 				}
 			}
 			// Permissive and Loose parse every input exactly as encoding/xml does.
-			for _, cfg := range []legacyCfg{strictCfg, looseCfg} {
+			for _, cfg := range []compatibilityCfg{strictCfg, looseCfg} {
 				if _, err := readAll2(NewDecoderBytes([]byte(tc.in), cfg.options()...)); err != nil {
 					t.Errorf("%+v: permissive profile rejects: %v", cfg, err)
 				}
-				if diff := diffLegacy(t, tc.in, cfg); diff != "" {
+				if diff := diffExpected(t, tc.in, cfg); diff != "" {
 					t.Errorf("%+v: %s", cfg, diff)
 				}
 			}

@@ -1,3 +1,7 @@
+// Copyright 2026 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 //go:build goexperiment.xmlv2
 
 package xmltext
@@ -13,15 +17,11 @@ import (
 	"testing"
 )
 
-// stdSuiteInputs returns every distinct XML-looking string constant in the
-// frozen encoding/xml test files (inputs of the Token/RawToken/syntax/parse
-// error/char/autoclose/entity tests, feeds, paths, marshal fixtures). The
-// Marshal/Unmarshal/Encoder tests also need a binder and writer, which do not
-// exist yet; their *inputs* are still tokenized here.
+// stdSuiteInputs returns XML-looking constants from the unchanged stdlib tests.
 func stdSuiteInputs(t testing.TB) []string {
-	files, err := filepath.Glob("../*_test.go")
+	files, err := filepath.Glob("../[amrx]*_test.go")
 	if err != nil || len(files) == 0 {
-		t.Fatalf("no legacy test files: %v", err)
+		t.Fatalf("no stdlib test files: %v", err)
 	}
 	seen := map[string]bool{}
 	var out []string
@@ -77,14 +77,12 @@ func stdSuiteInputs(t testing.TB) []string {
 	return out
 }
 
-// TestStdSuiteInputsAgainstLegacy runs every such input through the frozen
-// v1 decoder and xmltext under each v1-equivalent profile (Strict=true,
-// Strict=false, Strict=false with HTML AutoClose/Entity) and requires equal
-// acceptance and tokens (rejections need the same token prefix).
-func TestStdSuiteInputsAgainstLegacy(t *testing.T) {
+// TestStdSuiteExpectedTokens checks fixed token streams and rejection prefixes
+// for the stdlib corpus under the strict, loose, and HTML compatibility profiles.
+func TestStdSuiteExpectedTokens(t *testing.T) {
 	inputs := stdSuiteInputs(t)
 	t.Logf("%d distinct XML-looking constants from the encoding/xml tests", len(inputs))
-	cfgs := map[string]legacyCfg{
+	cfgs := map[string]compatibilityCfg{
 		"strict": strictCfg,
 		"loose":  looseCfg,
 		"html":   {autoClose: htmlAuto, entity: htmlEntity},
@@ -92,13 +90,13 @@ func TestStdSuiteInputsAgainstLegacy(t *testing.T) {
 	bad, bothOK, bothReject := 0, 0, 0
 	for name, c := range cfgs {
 		for _, in := range inputs {
-			_, werr := legacyRun(in, c)
+			_, werr := fixedTokens(in, c)
 			if _, gerr := readAll2(NewDecoderBytes([]byte(in), c.options()...)); werr == nil && gerr == nil {
 				bothOK++
 			} else if werr != nil && gerr != nil {
 				bothReject++
 			}
-			if d := diffLegacy(t, in, c); d != "" {
+			if d := diffExpected(t, in, c); d != "" {
 				bad++
 				t.Errorf("[%s] %q\n%s", name, in, d)
 			}

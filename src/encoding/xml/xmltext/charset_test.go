@@ -1,3 +1,7 @@
+// Copyright 2026 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 //go:build goexperiment.xmlv2
 
 package xmltext
@@ -11,8 +15,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	legacy "encoding/xml/internal/legacyxml"
 )
 
 var charsetInputModes = []string{"bytes", "buffer", "reader", "chunk1", "chunk2", "chunk3", "chunk7", "chunk16", "chunk4096"}
@@ -112,38 +114,6 @@ func charsetConverter(t *testing.T, mode string, labels *[]string, remainder *st
 	}
 }
 
-func charsetLegacyTokens(d *legacy.Decoder) ([]tok, error) {
-	var out []tok
-	for {
-		tk, err := d.Token()
-		if err == io.EOF {
-			return out, nil
-		}
-		if err != nil {
-			return out, err
-		}
-		var x tok
-		switch v := tk.(type) {
-		case legacy.StartElement:
-			x.kind, x.name = StartElement, Name{v.Name.Space, v.Name.Local}
-			for _, a := range v.Attr {
-				x.attrs = append(x.attrs, Attr{Name{a.Name.Space, a.Name.Local}, a.Value})
-			}
-		case legacy.EndElement:
-			x.kind, x.name = EndElement, Name{v.Name.Space, v.Name.Local}
-		case legacy.CharData:
-			x.kind, x.text = Text, string(v)
-		case legacy.Comment:
-			x.kind, x.text = Comment, string(v)
-		case legacy.ProcInst:
-			x.kind, x.name, x.text = ProcInst, Name{Local: v.Target}, string(v.Inst)
-		case legacy.Directive:
-			x.kind, x.text = Directive, string(v)
-		}
-		out = append(out, x)
-	}
-}
-
 func TestCharsetReaderConversion(t *testing.T) {
 	// Longer than the decoder window: both buffered read-ahead and the unread
 	// underlying reader must be converted, without losing or duplicating bytes.
@@ -153,36 +123,30 @@ func TestCharsetReaderConversion(t *testing.T) {
 		for _, inputMode := range charsetInputModes {
 			for _, conversion := range []string{"reader", "byte", "eager"} {
 				t.Run(label+"/"+inputMode+"/"+conversion, func(t *testing.T) {
-					var gotLabels, wantLabels []string
-					var gotRemainder, wantRemainder string
+					var gotLabels []string
+					var gotRemainder string
 					d := charsetDecoder(decl+body, inputMode, WithCharsetReader(charsetConverter(t, conversion, &gotLabels, &gotRemainder)))
-					ref := legacy.NewDecoder(charsetInput(decl+body, inputMode))
-					ref.CharsetReader = charsetConverter(t, conversion, &wantLabels, &wantRemainder)
 					first, err := d.ReadToken()
 					if err != nil {
 						t.Fatal(err)
 					}
-					refFirst, err := ref.Token()
-					if err != nil {
-						t.Fatal(err)
+					if first.Kind() != ProcInst || first.Name().Local != "xml" || string(first.Text()) != decl[6:len(decl)-2] {
+						t.Fatalf("declaration view corrupted: %v %v %q", first.Kind(), first.Name(), first.Text())
 					}
-					pi := refFirst.(legacy.ProcInst)
-					if first.Kind() != ProcInst || first.Name().Local != pi.Target || string(first.Text()) != string(pi.Inst) {
-						t.Fatalf("declaration view corrupted: %v %v %q; want %v", first.Kind(), first.Name(), first.Text(), pi)
+					if !reflect.DeepEqual(gotLabels, []string{label}) {
+						t.Fatalf("callback timing/labels: %v", gotLabels)
 					}
-					if !reflect.DeepEqual(gotLabels, []string{label}) || !reflect.DeepEqual(gotLabels, wantLabels) {
-						t.Fatalf("callback timing/labels: %v, legacy %v", gotLabels, wantLabels)
-					}
-					if conversion == "eager" && (gotRemainder != body || gotRemainder != wantRemainder) {
+					if conversion == "eager" && (gotRemainder != body) {
 						t.Fatal("callback did not receive exactly the unread declaration remainder")
 					}
 					got, err := readAll(t, d)
-					want, refErr := charsetLegacyTokens(ref)
-					if err != nil || refErr != nil {
-						t.Fatalf("conversion errors: %v, legacy %v", err, refErr)
+					want := []tok{{kind: StartElement, name: Name{Local: "r"}, attrs: []Attr{{Name{Local: "a"}, "café"}}}, {kind: Comment, text: "café"}, {kind: ProcInst, name: Name{Local: "note"}, text: "café"}, {kind: Text, text: strings.Repeat("café", 20000)}, {kind: StartElement, name: Name{Local: "b"}}, {kind: EndElement, name: Name{Local: "b"}}, {kind: EndElement, name: Name{Local: "r"}}}
+
+					if err != nil {
+						t.Fatalf("conversion error: %v", err)
 					}
 					if !reflect.DeepEqual(normalize(got), normalize(want)) {
-						t.Fatal("converted tokens differ from legacy")
+						t.Fatal("converted tokens differ from expectation")
 					}
 					if len(gotLabels) != 1 {
 						t.Fatalf("callback called %d times", len(gotLabels))
@@ -214,11 +178,10 @@ func TestCharsetReaderUTF8AndNoEncoding(t *testing.T) {
 				}
 				in := decl + `<r>café</r>`
 				got, err := readAll(t, charsetDecoder(in, mode, WithCharsetReader(cb), Permissive(permissive)))
-				ref := legacy.NewDecoder(charsetInput(in, mode))
-				ref.CharsetReader = cb
-				want, refErr := charsetLegacyTokens(ref)
-				if err != nil || refErr != nil || called != 0 || !reflect.DeepEqual(normalize(got), normalize(want)) {
-					t.Fatalf("tokens/error/callbacks differ: %v %v %d", err, refErr, called)
+				want := []tok{{kind: ProcInst, name: Name{Local: strings.Fields(decl[2:])[0]}, text: decl[strings.IndexByte(decl, ' ')+1 : len(decl)-2]}, {kind: StartElement, name: Name{Local: "r"}}, {kind: Text, text: "café"}, {kind: EndElement, name: Name{Local: "r"}}}
+
+				if err != nil || called != 0 || !reflect.DeepEqual(normalize(got), normalize(want)) {
+					t.Fatalf("tokens/error/callbacks differ: %v %d", err, called)
 				}
 			})
 		}
@@ -245,14 +208,11 @@ func TestCharsetReaderErrors(t *testing.T) {
 			}
 			d := charsetDecoder(in, mode, WithCharsetReader(cb))
 			_, err := d.ReadToken()
-			ref := legacy.NewDecoder(charsetInput(in, mode))
-			ref.CharsetReader = cb
-			_, refErr := ref.Token()
-			if err == nil || refErr == nil || err.Error() != refErr.Error() || !errors.Is(err, sentinel) || !errors.Is(refErr, sentinel) || called != 2 {
-				t.Fatalf("callback errors/timing: %v, legacy %v, calls %d", err, refErr, called)
+			if err == nil || !errors.Is(err, sentinel) || called != 1 {
+				t.Fatalf("callback errors/timing: %v, calls %d", err, called)
 			}
 			_, again := d.ReadToken()
-			if again != err || called != 2 {
+			if again != err || called != 1 {
 				t.Fatal("callback error is not sticky")
 			}
 		})
@@ -286,11 +246,9 @@ func TestCharsetReaderNilPanics(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			d := charsetDecoder(in, mode, WithCharsetReader(cb))
 			got := charsetPanic(func() { d.ReadToken() })
-			ref := legacy.NewDecoder(charsetInput(in, mode))
-			ref.CharsetReader = cb
-			want := charsetPanic(func() { ref.Token() })
+			want := "CharsetReader returned a nil Reader for charset x-MiXeD"
 			if got == nil || !reflect.DeepEqual(got, want) {
-				t.Fatalf("panic %v, legacy %v", got, want)
+				t.Fatalf("panic %v, want %v", got, want)
 			}
 		})
 	}
@@ -341,11 +299,9 @@ func TestCharsetReaderDownstreamErrors(t *testing.T) {
 				}
 				d := NewDecoder(makeReader(), WithCharsetReader(cb))
 				got, err := readAll(t, d)
-				ref := legacy.NewDecoder(makeReader())
-				ref.CharsetReader = cb
-				want, refErr := charsetLegacyTokens(ref)
-				if !errors.Is(err, sentinel) || !errors.Is(refErr, sentinel) || err.Error() != refErr.Error() || !reflect.DeepEqual(normalize(got), normalize(want)) {
-					t.Fatalf("downstream tokens/errors differ: %v, legacy %v", err, refErr)
+				want := []tok{{kind: ProcInst, name: Name{Local: "xml"}, text: decl[6 : len(decl)-2]}, {kind: StartElement, name: Name{Local: "r"}}, {kind: Text, text: "café"}, {kind: EndElement, name: Name{Local: "r"}}}
+				if !errors.Is(err, sentinel) || !reflect.DeepEqual(normalize(got), normalize(want)) {
+					t.Fatalf("downstream tokens/errors differ: %v", err)
 				}
 				if _, again := d.ReadToken(); again != err {
 					t.Fatalf("read error not sticky: %v, then %v", err, again)
@@ -370,11 +326,10 @@ func TestCharsetReaderMayConsumeSourceError(t *testing.T) {
 		return strings.NewReader(body), nil
 	}
 	got, err := readAll(t, NewDecoder(makeReader(), WithCharsetReader(cb)))
-	ref := legacy.NewDecoder(makeReader())
-	ref.CharsetReader = cb
-	want, refErr := charsetLegacyTokens(ref)
-	if err != nil || refErr != nil || !reflect.DeepEqual(got, want) {
-		t.Fatalf("old source error survived conversion: %v, legacy %v", err, refErr)
+	want := []tok{{kind: ProcInst, name: Name{Local: "xml"}, text: decl[6 : len(decl)-2]}, {kind: StartElement, name: Name{Local: "r"}}, {kind: Text, text: "replacement"}, {kind: EndElement, name: Name{Local: "r"}}}
+
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("old source error survived conversion: %v", err)
 	}
 }
 
@@ -386,7 +341,7 @@ func TestCharsetReaderRepeatedDeclarations(t *testing.T) {
 	for _, mode := range charsetInputModes {
 		for _, capture := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/capture%v", mode, capture), func(t *testing.T) {
-				var gotLabels, wantLabels []string
+				var gotLabels []string
 				cb := func(labels *[]string) func(string, io.Reader) (io.Reader, error) {
 					return func(label string, input io.Reader) (io.Reader, error) {
 						*labels = append(*labels, label)
@@ -394,8 +349,6 @@ func TestCharsetReaderRepeatedDeclarations(t *testing.T) {
 					}
 				}
 				d := charsetDecoder(decl+body, mode, WithCharsetReader(cb(&gotLabels)), Permissive(true))
-				ref := legacy.NewDecoder(charsetInput(decl+body, mode))
-				ref.CharsetReader = cb(&wantLabels)
 				if capture {
 					if _, err := d.ReadToken(); err != nil {
 						t.Fatal(err)
@@ -404,18 +357,15 @@ func TestCharsetReaderRepeatedDeclarations(t *testing.T) {
 					if err != nil || string(raw) != body {
 						t.Fatalf("capture across charset switch: %q %v", raw, err)
 					}
-					if _, err := charsetLegacyTokens(ref); err != nil {
-						t.Fatal(err)
-					}
 				} else {
 					got, err := readAll(t, d)
-					want, refErr := charsetLegacyTokens(ref)
-					if err != nil || refErr != nil || !reflect.DeepEqual(got, want) {
-						t.Fatalf("repeated declaration tokens/errors: %v, legacy %v", err, refErr)
+					want := []tok{{kind: ProcInst, name: Name{Local: "xml"}, text: decl[6 : len(decl)-2]}, {kind: StartElement, name: Name{Local: "r"}}, {kind: ProcInst, name: Name{Local: "xml"}, text: `encoding="SeCoNd"`}, {kind: Text, text: "ok"}, {kind: EndElement, name: Name{Local: "r"}}}
+					if err != nil || !reflect.DeepEqual(got, want) {
+						t.Fatalf("repeated declaration tokens/errors: %v", err)
 					}
 				}
-				if !reflect.DeepEqual(gotLabels, []string{"First", "SeCoNd"}) || !reflect.DeepEqual(gotLabels, wantLabels) {
-					t.Fatalf("declaration callbacks: %v, legacy %v", gotLabels, wantLabels)
+				if !reflect.DeepEqual(gotLabels, []string{"First", "SeCoNd"}) {
+					t.Fatalf("declaration callbacks: %v", gotLabels)
 				}
 			})
 		}
@@ -455,7 +405,7 @@ func TestCharsetReaderResetAndCallerBytes(t *testing.T) {
 						d.Reset(charsetInput(`<new>unconverted</new>`, resetMode))
 					}
 					got, err := readAll(t, d)
-					want, refErr := stdTokens(t, `<new>unconverted</new>`)
+					want, refErr := expectedTokens(t, `<new>unconverted</new>`)
 					if err != nil || refErr != nil || !reflect.DeepEqual(got, want) || len(labels) != 1 {
 						t.Fatalf("Reset did not discard conversion state: %v, labels %v", err, labels)
 					}
@@ -493,7 +443,7 @@ func TestCharsetReaderNextOperations(t *testing.T) {
 					t.Fatalf("PeekKind = %v", kind)
 				}
 				got, err := readAll(t, d)
-				want, _ := stdTokens(t, "<r>café</r>")
+				want, _ := expectedTokens(t, "<r>café</r>")
 				if err != nil || !reflect.DeepEqual(normalize(got), normalize(want)) {
 					t.Fatalf("tokens after PeekKind differ: %v", err)
 				}

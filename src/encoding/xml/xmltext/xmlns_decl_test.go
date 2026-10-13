@@ -1,15 +1,17 @@
+// Copyright 2026 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 //go:build goexperiment.xmlv2
 
 package xmltext
 
 import (
 	"bytes"
+	"encoding/xml/internal/xmlopts"
 	"fmt"
 	"strings"
 	"testing"
-
-	stdxml "encoding/xml/internal/legacyxml"
-	"encoding/xml/internal/xmlopts"
 )
 
 // The Decoder names a declaration by the xmlns namespace; any other attribute,
@@ -193,7 +195,7 @@ func TestEncoderDeclarationNames(t *testing.T) {
 
 // LegacyOutput keeps encoding/xml's reading of "xmlns" names: Space "xmlns" is
 // a namespace URI that gets a derived prefix, and a bare xmlns attribute is
-// written as is. The expected bytes come from the frozen encoding/xml Encoder.
+// written as is. The bytes are a fixed expectation from the original stdlib Encoder.
 func TestEncoderLegacyXMLNSNames(t *testing.T) {
 	attrs := []Attr{
 		{Name{"xmlns", "x"}, "space"},
@@ -208,19 +210,9 @@ func TestEncoderLegacyXMLNSNames(t *testing.T) {
 		}
 		return e.EndElement()
 	})
-	var want bytes.Buffer
-	se := stdxml.NewEncoder(&want)
-	start := stdxml.StartElement{Name: stdxml.Name{Local: "a"}}
-	for _, a := range attrs {
-		start.Attr = append(start.Attr, stdxml.Attr{Name: stdxml.Name{Space: a.Name.Space, Local: a.Name.Local}, Value: a.Value})
-	}
-	if err := se.EncodeToken(start); err != nil {
-		t.Fatal(err)
-	}
-	se.EncodeToken(start.End())
-	se.Flush()
-	if got != want.String() {
-		t.Errorf("\n got %s\nwant %s", got, want.String())
+	const want = `<a xmlns:_xmlns="xmlns" _xmlns:x="space" xmlns="d" xmlns:_xmlns_1="http://www.w3.org/2000/xmlns/" _xmlns_1:p="v" _xmlns:xmlns="w"></a>`
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }
 

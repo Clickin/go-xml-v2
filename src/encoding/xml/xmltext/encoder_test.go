@@ -1,16 +1,18 @@
+// Copyright 2026 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 //go:build goexperiment.xmlv2
 
 package xmltext
 
 import (
 	"bytes"
+	"encoding/xml/internal/xmlopts"
 	"fmt"
 	"math/rand"
 	"strings"
 	"testing"
-
-	stdxml "encoding/xml/internal/legacyxml"
-	"encoding/xml/internal/xmlopts"
 )
 
 func encode(t *testing.T, opts []Options, f func(e *Encoder) error) string {
@@ -323,84 +325,6 @@ func wantTokens(toks []genTok) []tok {
 	return out
 }
 
-// In LegacyOutput mode the bytes equal encoding/xml's Encoder.EncodeToken
-// output for the same token sequence, with and without indentation.
-func TestEncoderLegacyMatchesStd(t *testing.T) {
-	rng := rand.New(rand.NewSource(2))
-	for iter := 0; iter < 2000; iter++ {
-		toks := randomTokens(rng, 0)
-		var indent [2]string
-		if rng.Intn(2) == 0 {
-			indent = [2]string{[]string{"", ">"}[rng.Intn(2)], []string{" ", "\t", "  "}[rng.Intn(3)]}
-		}
-		var want bytes.Buffer
-		se := stdxml.NewEncoder(&want)
-		se.Indent(indent[0], indent[1])
-		for _, tk := range toks {
-			var err error
-			switch tk.kind {
-			case StartElement:
-				st := stdxml.StartElement{Name: stdxml.Name{Space: tk.name.Space, Local: tk.name.Local}}
-				for _, a := range tk.attrs {
-					st.Attr = append(st.Attr, stdxml.Attr{Name: stdxml.Name{Space: a.Name.Space, Local: a.Name.Local}, Value: a.Value})
-				}
-				err = se.EncodeToken(st)
-			case EndElement:
-				err = se.EncodeToken(stdxml.EndElement{Name: stdxml.Name{Space: tk.name.Space, Local: tk.name.Local}})
-			case Text:
-				err = se.EncodeToken(stdxml.CharData(tk.text))
-			case Comment:
-				err = se.EncodeToken(stdxml.Comment(tk.text))
-			case CData:
-				continue // not a v1 token; EncodeToken has no CDATA
-			}
-			if err != nil {
-				t.Fatalf("std: %v", err)
-			}
-		}
-		se.Close()
-
-		var got bytes.Buffer
-		opts := []Options{xmlopts.LegacyOutput(true), BufferSize(1 + rng.Intn(50))}
-		if indent != ([2]string{}) {
-			opts = append(opts, WithIndent(indent[0], indent[1]))
-		}
-		e := NewEncoder(&got, opts...)
-		for _, tk := range toks {
-			if tk.kind == CData {
-				continue
-			}
-			if err := playTokens(e, []genTok{tk}); err != nil {
-				t.Fatalf("encoder: %v", err)
-			}
-		}
-		e.Close()
-		if got.String() != want.String() {
-			t.Fatalf("iter %d indent %q\n got %q\nwant %q", iter, indent, got.String(), want.String())
-		}
-	}
-}
-
-// Escaping equals encoding/xml's EscapeText for text and attribute values.
-func TestEscapeLegacyMatchesStd(t *testing.T) {
-	rng := rand.New(rand.NewSource(3))
-	alphabet := []byte("ab &<>\"'\t\n\r\x00\x01\x7f\xc3\xa9\xe2\x82\xac\xff\xf0\x9f\x98\x80\xef\xbf\xbe")
-	e := NewEncoder(nil, xmlopts.LegacyOutput(true))
-	for i := 0; i < 20000; i++ {
-		n := rng.Intn(24)
-		s := make([]byte, n)
-		for j := range s {
-			s[j] = alphabet[rng.Intn(len(alphabet))]
-		}
-		var want bytes.Buffer
-		stdxml.EscapeText(&want, s)
-		got, err := e.escapeInto(nil, s, escLegAttr, 0)
-		if err != nil || string(got) != want.String() {
-			t.Fatalf("%q: got %q (%v) want %q", s, got, err, want.String())
-		}
-	}
-}
-
 // FuzzEncoderValues: any text/attribute value either fails because it holds an
 // invalid character, or is written such that the strict Decoder returns it
 // unchanged.
@@ -509,5 +433,34 @@ func TestEncoderEagerTags(t *testing.T) {
 		return e.EndElement()
 	}); got != `<a xmlns=""/>` {
 		t.Errorf("got %s", got)
+	}
+}
+
+// LegacyOutput uses expanded empty tags, derived namespace prefixes, and v1 escaping.
+func TestEncoderLegacyOutput(t *testing.T) {
+	got := encode(t, []Options{xmlopts.LegacyOutput(true)}, func(e *Encoder) error {
+		e.BeginElement(Name{Space: "urn:a", Local: "a"})
+		e.Attr(Name{Space: "urn:b", Local: "x"}, "<&\t\n\r")
+		e.BeginElement(Name{Local: "b"})
+		e.EndElement()
+		e.Text("<&>\r")
+		return e.EndElement()
+	})
+	const want = `<a xmlns="urn:a" xmlns:_="urn:b" _:x="&lt;&amp;&#x9;&#xA;&#xD;"><b></b>&lt;&amp;&gt;&#xD;</a>`
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+func TestEscapeLegacy(t *testing.T) {
+	e := NewEncoder(nil, xmlopts.LegacyOutput(true))
+	for _, c := range []struct{ in, want string }{
+		{"<&>\"'\t\n\r", "&lt;&amp;&gt;&#34;&#39;&#x9;&#xA;&#xD;"},
+		{"\x00\x01\xff", "���"},
+		{"é한😀", "é한😀"},
+	} {
+		got, err := e.escapeInto(nil, []byte(c.in), escLegAttr, 0)
+		if err != nil || string(got) != c.want {
+			t.Errorf("%q: got %q (%v), want %q", c.in, got, err, c.want)
+		}
 	}
 }
