@@ -112,8 +112,10 @@ func (d *Decoder) v1StartTagErr(b []byte, base int, truncated bool) error {
 				// no closing quote: errors in the part that is there still come first
 				if err := d.checkAttrValue(b[i+1:], base+i+1); err != nil && truncated {
 					if se, ok := err.(*SyntaxError); ok && strings.HasPrefix(se.Msg, "invalid character entity") {
-						p := int(se.Offset) - base - (i + 1) // the '&'
-						if e := p + 1; e <= len(b)-(i+1) && refRunReachesEnd(b[i+1:], p) {
+						// se.Offset is where the lexer stopped, past the '&'.
+						val := b[i+1:]
+						p := bytes.LastIndexByte(val[:min(int(se.Offset)-base-(i+1), len(val))], '&')
+						if p >= 0 && refRunReachesEnd(val, p) {
 							return eof()
 						}
 					}
