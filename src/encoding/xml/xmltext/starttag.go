@@ -544,7 +544,7 @@ func clip(b []byte) []byte {
 	return b
 }
 
-func (d *Decoder) appendRef(dst, ref []byte) ([]byte, bool) {
+func (d *Decoder) appendRef(dst, ref []byte, at int) ([]byte, bool) {
 	if len(ref) == 0 {
 		return dst, false
 	}
@@ -610,36 +610,41 @@ func (d *Decoder) appendRef(dst, ref []byte) ([]byte, bool) {
 		}
 		return utf8Append(dst, rune(n)), true
 	}
-	switch len(ref) {
-	case 2:
-		if ref[1] == 't' {
-			if ref[0] == 'l' {
-				return append(dst, '<'), true
-			}
-			if ref[0] == 'g' {
-				return append(dst, '>'), true
-			}
-		}
-	case 3:
-		if ref[0] == 'a' && ref[1] == 'm' && ref[2] == 'p' {
-			return append(dst, '&'), true
-		}
-	case 4:
-		switch string(ref) {
-		case "apos":
-			return append(dst, '\''), true
-		case "quot":
-			return append(dst, '"'), true
-		}
+	if c, ok := predefinedRef(ref); ok {
+		return append(dst, c), true
 	}
 	// Like encoding/xml, validate the profile's Name before the entity-map lookup.
 	if !d.validName(ref) {
 		return dst, false
 	}
+	if d.opts.LegacyDecoder != nil {
+		if value, found, saved := d.legacyReferenceAt(at); saved {
+			if found {
+				return append(dst, value...), true
+			}
+			return dst, false
+		}
+	}
 	if v, ok := d.opts.Entities[string(ref)]; ok {
 		return append(dst, v...), true
 	}
 	return dst, false
+}
+
+func predefinedRef(ref []byte) (byte, bool) {
+	switch string(ref) {
+	case "lt":
+		return '<', true
+	case "gt":
+		return '>', true
+	case "amp":
+		return '&', true
+	case "apos":
+		return '\'', true
+	case "quot":
+		return '"', true
+	}
+	return 0, false
 }
 
 // pushBare handles a start tag the engine verified to be "<name>" or

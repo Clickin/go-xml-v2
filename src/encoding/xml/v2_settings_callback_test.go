@@ -11,7 +11,6 @@ import (
 	"io"
 	"maps"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 )
@@ -166,26 +165,30 @@ func TestSettingsReaderCallbacksLegacy(t *testing.T) {
 					if gr.calls != 1 {
 						t.Fatalf("callback count: %d, want one", gr.calls)
 					}
-					if tc.inPlace {
-						// Accepted difference: the Reader mutates the Entity map in
-						// place, and only Strict and map replacement are tracked per
-						// byte. An in-place change applies to the token being read as
-						// a whole (here: its first &old; too) and to later tokens,
-						// whereas encoding/xml applies it from the byte the Reader
-						// changed it.
-						wantTrace := slices.Clone(wtrace)
-						for i := range wantTrace {
-							wantTrace[i] = strings.Replace(wantTrace[i], `before|after`, `after|after`, 1)
-						}
-						if reflect.DeepEqual(wantTrace, wtrace) {
-							t.Fatalf("legacy trace has no per-byte difference to accept: %q", wtrace)
-						}
-						wtrace = wantTrace
-					}
 					if !reflect.DeepEqual(gtrace, wtrace) {
 						t.Fatalf("legacy: %q\n   new: %q", wtrace, gtrace)
 					}
 				})
+			}
+		}
+	}
+}
+
+func TestSettingsUnknownEntityNotAddedRetroactively(t *testing.T) {
+	for _, input := range []string{`<r>&new;|&new;</r>`, `<r a="&new;|&new;"/>`} {
+		for _, initial := range []map[string]string{nil, {}, {"other": "unchanged"}} {
+			r := &settingsCallbackReader{input: input, at: strings.IndexByte(input, '|') + 1}
+			d := NewDecoder(r)
+			d.Entity = maps.Clone(initial)
+			r.change = func() {
+				if d.Entity == nil {
+					d.Entity = make(map[string]string)
+				}
+				d.Entity["new"] = "added"
+			}
+			var value string
+			if err := d.Decode(&value); err == nil || !strings.Contains(err.Error(), "invalid character entity") {
+				t.Fatalf("input %q, initial map %v: Decode = %q, %v; first reference must fail", input, initial, value, err)
 			}
 		}
 	}

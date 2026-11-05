@@ -282,6 +282,8 @@ var depsRules = `
 	< encoding/xml/internal/xmlname
 	< encoding/xml/internal/xmlopts
 	< encoding/xml/xmltext
+	< encoding/xml/internal/xmllegacy
+	< encoding/xml/v2
 	< encoding/xml;
 
 	STR, errors

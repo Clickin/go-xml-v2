@@ -52,10 +52,7 @@ func sizeOf[T any](s []T) int {
 // are dropped, the rest are kept empty for the next Reset or ResetBytes. It
 // returns the capacity in bytes of what is kept.
 //
-// The table of interned names (at most 256 short strings, each a copy, never a
-// view into the input) is kept on purpose: it is what lets a reused Decoder
-// read the names of the next document without allocating, and it is looked up
-// only by byte-equal match, so nothing in it reaches a later result.
+// The string cache set through Internal is left as is; its owner manages it.
 //
 // After Release d is unusable until Reset or ResetBytes; any other call
 // returns an error. Tokens and views obtained before Release are invalid.
@@ -65,11 +62,12 @@ func (d *Decoder) Release() (retained int) {
 	} else {
 		d.buf = nil // the caller's input
 	}
-	d.r, d.charsetPending = nil, nil
+	d.r, d.charsetPending, d.user = nil, nil, nil
 	d.opts = xmlopts.Options{}
 	d.legacy = nil
 	d.rerr, d.deferredErr, d.engErr = nil, nil, nil
 	d.err, d.rare = errReleased, true
+	d.dropBatch()
 	d.pos, d.eof, d.bi, d.bn, d.selfEnd, d.popEnd = 0, true, 0, 0, false, false
 	d.kind = Invalid
 	d.attrs = keepClearAttrSpans(d.attrs)
@@ -112,7 +110,8 @@ func (e *Encoder) Release() (retained int) {
 	e.binds = keepClear(e.binds)
 	e.autos = keepClear(e.autos)
 	e.prefixes = keepClear(e.prefixes)
+	e.akeys = keepClear(e.akeys)
 	e.Reset(nil)
 	return sizeOf(e.buf) + sizeOf(e.pbuf) + sizeOf(e.arena) + sizeOf(e.tattrs) +
-		sizeOf(e.stack) + sizeOf(e.binds) + sizeOf(e.autos) + sizeOf(e.prefixes)
+		sizeOf(e.stack) + sizeOf(e.binds) + sizeOf(e.autos) + sizeOf(e.prefixes) + sizeOf(e.akeys)
 }

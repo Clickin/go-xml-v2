@@ -207,7 +207,7 @@ func (d *Decoder) decodeFused(dst, body []byte, from, at int, bracket, amps bool
 			}
 			ok := j < len(body) && body[j] == ';'
 			if ok {
-				dst, ok = d.appendRef(dst, body[i+1:j])
+				dst, ok = d.appendRef(dst, body[i+1:j], at+j)
 			}
 			if !ok {
 				if d.illegalRef {

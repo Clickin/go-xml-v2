@@ -31,7 +31,7 @@ type engineError struct {
 }
 
 const (
-	maxBatch   = 64
+	maxBatch   = 32
 	textWindow = 32 << 10
 )
 

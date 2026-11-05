@@ -9,6 +9,7 @@ package xmltext
 import (
 	"bytes"
 	"io"
+	"math"
 	"strings"
 	"testing"
 )
@@ -43,7 +44,7 @@ func TestFillLenHint(t *testing.T) {
 		"exact": func(n int) int { return n },
 		"zero":  func(int) int { return 0 },
 		"neg":   func(int) int { return -5 },
-		"huge":  func(int) int { return 1 << 40 },
+		"huge":  func(int) int { return math.MaxInt },
 	} {
 		got, _ := read(&lenReader{bytes.NewReader([]byte(doc)), fix})
 		if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
@@ -51,7 +52,7 @@ func TestFillLenHint(t *testing.T) {
 		}
 	}
 	_, exact := read(bytes.NewReader([]byte(doc)))
-	_, plain := read(&lenReader{bytes.NewReader([]byte(doc)), func(int) int { return 1 << 40 }})
+	_, plain := read(&lenReader{bytes.NewReader([]byte(doc)), func(int) int { return math.MaxInt }})
 	if exact > len(doc)+minRead || exact >= plain {
 		t.Errorf("buffer cap with exact Len = %d, want <= %d and below %d (no hint)", exact, len(doc)+minRead, plain)
 	}

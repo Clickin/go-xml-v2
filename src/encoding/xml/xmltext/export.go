@@ -1,0 +1,51 @@
+// Copyright 2026 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+//go:build goexperiment.xmlv2
+
+package xmltext
+
+import "encoding/xml/internal/xmlopts"
+
+// Internal is for internal use only.
+// This is exempt from the Go compatibility agreement.
+var Internal exporter
+
+type exporter struct{}
+
+// Export exposes internal functionality of the "xmltext" package
+// to encoding/xml, like jsontext.Internal does for encoding/json.
+func (exporter) Export(p *xmlopts.NotForPublicUse) export {
+	if p != &xmlopts.AllowInternalUse {
+		panic("unauthorized call to Export")
+	}
+	return export{}
+}
+
+type export struct{}
+
+// StringCache returns the string cache of d, which encoding/xml sets while
+// it unmarshals and clears afterwards.
+func (export) StringCache(d *Decoder) **[256]string { return &d.stringCache }
+
+// EncoderState and DecoderState return a slot that encoding/xml/v2 uses to
+// find its options and state from an Encoder or Decoder passed to a
+// MarshalerTo or UnmarshalerFrom method, as jsontext keeps json.Options
+// in its coders. An Encoder keeps it across Reset, so that a pooled
+// encoding/xml Encoder reuses its state; a Decoder's Reset clears it.
+func (export) EncoderState(e *Encoder) *any { return &e.user }
+func (export) DecoderState(d *Decoder) *any { return &d.user }
+
+// OpenDepth returns the number of elements open after the last token
+// returned by d: unlike StackDepth, an element whose end tag was just
+// returned no longer counts.
+func (export) OpenDepth(d *Decoder) int {
+	if d.popEnd {
+		return len(d.stack) - 1
+	}
+	return len(d.stack)
+}
+
+// Capturing reports whether d has a capture active; see StartCapture.
+func (export) Capturing(d *Decoder) bool { return d.capturing }

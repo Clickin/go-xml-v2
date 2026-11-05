@@ -94,7 +94,7 @@ func (d *Decoder) spaceOf(prefix []byte, element bool) string {
 	if element && d.perm && string(prefix) == "xmlns" {
 		return "xmlns"
 	}
-	if uri, ok := d.lookup(prefix); ok && !(d.perm && !element && uri == XMLNSNamespace) {
+	if uri, ok := d.lookup(prefix); ok && !(d.perm && d.opts.LegacyDecoder == nil && !element && uri == XMLNSNamespace) {
 		return uri
 	}
 	return d.internBytes(prefix)
@@ -176,6 +176,12 @@ func (it *AttrIter) Name() Name {
 	a := &d.attrs[it.i]
 	q := d.buf[a.name:a.nameEnd]
 	if a.decl {
+		if d.opts.LegacyDecoder != nil {
+			if a.colon < 0 {
+				return Name{Local: "xmlns"}
+			}
+			return Name{Space: "xmlns", Local: d.internBytes(q[a.colon+1:])}
+		}
 		if a.colon < 0 {
 			return Name{Space: XMLNSNamespace, Local: "xmlns"}
 		}

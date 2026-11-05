@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
+	"sync"
 	"unicode/utf8"
 
 	"encoding/xml/internal/xmlopts"
@@ -37,7 +38,7 @@ const (
 	initialRead = 4 << 10
 	// minInitialRead is the smallest first buffer, used when the reader says
 	// it holds almost nothing.
-	minInitialRead = 512
+	minInitialRead = 64
 )
 
 // lowRoom is the free space fill wants in a buffer of capacity c before it
@@ -100,8 +101,11 @@ type binding struct {
 // the next token continues, and callers collecting a value must concatenate.
 // ReadElement preserves the original raw bytes.
 type Decoder struct {
-	opts   xmlopts.Options
-	legacy *legacyChanges // nil unless Reader callbacks need settings snapshots
+	user           any // state of the encoding/xml/v2 call reading from d; see export.go
+	opts           xmlopts.Options
+	legacy         *legacyChanges // nil unless Reader callbacks need settings snapshots
+	legacyRefScan  int64          // absolute next byte to inspect before a Reader callback
+	legacyRefStart int64          // absolute start of a pending named reference, or -1
 
 	// effective rule set derived from opts at reset
 	perm        bool // v1 Strict=true acceptance rules
@@ -137,7 +141,7 @@ type Decoder struct {
 
 	// boundary engine and its batch of located, not yet parsed tokens
 	eng     boundaryEngine
-	bnd     [maxBatch]boundary
+	bnd     *[maxBatch]boundary // from batchPool while tokens are read; see dropBatch
 	bi, bn  int
 	scanPos int   // window index where the engine continues scanning
 	engErr  error // deferred until the batch drains
@@ -179,7 +183,10 @@ type Decoder struct {
 	capStart  int
 	capBuf    []byte
 
-	intern [256]string
+	// stringCache, when set, makes the strings of names; it is only used
+	// when unmarshaling and set through Internal, like the field of the same
+	// name in encoding/json/jsontext.
+	stringCache *[256]string
 }
 
 // NewDecoder returns a Decoder reading from r. A *bytes.Buffer is decoded in
@@ -229,18 +236,19 @@ func (d *Decoder) reset(opts []Options) {
 		keepBuf = nil
 	}
 	*d = Decoder{
-		opts:      xmlopts.Join(opts...),
-		buf:       keepBuf,
-		attrs:     d.attrs[:0],
-		scratch:   d.scratch[:0],
-		attrBuf:   d.attrBuf[:0],
-		nameArena: d.nameArena[:0],
-		stack:     d.stack[:0],
-		bindings:  d.bindings[:0],
-		capBuf:    d.capBuf[:0],
-		intern:    d.intern,
-		lineNo:    1,
-		eng:       d.eng,
+		opts:        xmlopts.Join(opts...),
+		buf:         keepBuf,
+		attrs:       d.attrs[:0],
+		scratch:     d.scratch[:0],
+		attrBuf:     d.attrBuf[:0],
+		nameArena:   d.nameArena[:0],
+		stack:       d.stack[:0],
+		bindings:    d.bindings[:0],
+		capBuf:      d.capBuf[:0],
+		stringCache: d.stringCache,
+		bnd:         d.bnd,
+		lineNo:      1,
+		eng:         d.eng,
 	}
 	if d.eng == nil {
 		d.eng = new(t0Engine)
@@ -407,35 +415,27 @@ func (d *Decoder) fail(err error) (Token, error) {
 		d.err = err
 	}
 	d.kind = Invalid
+	d.dropBatch()
 	return Token{}, d.err
 }
 
-var oneByte = func() (t [256]string) {
-	for i := range t {
-		t[i] = string([]byte{byte(i)})
-	}
-	return
-}()
+// batchPool holds boundary batches. A batch holds only offsets into the
+// Decoder's own buffer, so it can go back to the pool as soon as the Decoder
+// can read no more tokens, which spares a Decoder that is read to its end
+// (the usual case of one made by NewDecoder) its largest allocation.
+var batchPool = sync.Pool{New: func() any { return new([maxBatch]boundary) }}
 
-func (d *Decoder) internBytes(b []byte) string {
-	if len(b) == 1 {
-		return oneByte[b[0]]
+// dropBatch returns the boundary batch to batchPool. It is called once d has
+// a final error or EOF, after which nothing reads the batch until a Reset.
+func (d *Decoder) dropBatch() {
+	if d.bnd != nil {
+		batchPool.Put(d.bnd)
+		d.bnd, d.bi, d.bn = nil, 0, 0
 	}
-	if len(b) == 0 || len(b) > 256 {
-		return string(b)
-	}
-	var h uint32 = 2166136261
-	for _, c := range b {
-		h = (h ^ uint32(c)) * 16777619
-	}
-	e := &d.intern[h&255]
-	if *e == string(b) { // compiler-optimized, no allocation
-		return *e
-	}
-	s := string(b)
-	*e = s
-	return s
 }
+
+// internBytes returns b as a string, from the string cache when one is set.
+func (d *Decoder) internBytes(b []byte) string { return makeString(d.stringCache, b) }
 
 // ensureBoundary makes sure the next token's boundary is available. It
 // reports done when the input has no more tokens.
@@ -455,6 +455,9 @@ func (d *Decoder) ensureBoundary() (done bool, err error) {
 		}
 		if d.noMore {
 			return true, nil
+		}
+		if d.bnd == nil {
+			d.bnd = batchPool.Get().(*[maxBatch]boundary)
 		}
 		n, need, eerr := d.eng.next(d.buf, d.scanPos, d.eof, d.bnd[:])
 		d.bi, d.bn = 0, n
@@ -640,6 +643,7 @@ func (d *Decoder) atEOF() (Token, error) {
 	d.kind = EOF
 	d.rare = true
 	d.err = io.EOF
+	d.dropBatch()
 	return Token{d: d, kind: EOF}, io.EOF
 }
 

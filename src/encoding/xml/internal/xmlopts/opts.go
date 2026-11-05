@@ -9,6 +9,13 @@ package xmlopts
 
 import "io"
 
+// NotForPublicUse and AllowInternalUse guard xmltext.Internal, as their
+// namesakes in encoding/json/internal guard jsontext.Internal.
+type NotForPublicUse struct{ _ [1]byte }
+
+// AllowInternalUse is passed to xmltext.Internal.Export.
+var AllowInternalUse NotForPublicUse
+
 // Option is an opaque option value. Its zero value leaves every setting unset.
 type Option struct {
 	value Options
@@ -65,6 +72,12 @@ type Options struct {
 
 	RawNesting bool
 
+	// Semantic options, used by encoding/xml/v2 and ignored by xmltext.
+	Marshalers         any // *xml.Marshalers
+	Unmarshalers       any // *xml.Unmarshalers
+	RejectUnknownNames bool
+	OmitZeroFields     bool
+
 	// LegacyDecoder is reserved for the v1 adapter's mutable public fields.
 	LegacyDecoder *LegacyDecoder
 }
@@ -94,6 +107,10 @@ const (
 	HasRawNesting
 	HasMaxAttributes
 	HasSplitText
+	HasMarshalers
+	HasUnmarshalers
+	HasRejectUnknownNames
+	HasOmitZeroFields
 )
 
 const (
@@ -151,6 +168,18 @@ func Join(opts ...Option) Options {
 		}
 		if o.Set&HasRawNesting != 0 {
 			out.RawNesting = o.RawNesting
+		}
+		if o.Set&HasMarshalers != 0 {
+			out.Marshalers = o.Marshalers
+		}
+		if o.Set&HasUnmarshalers != 0 {
+			out.Unmarshalers = o.Unmarshalers
+		}
+		if o.Set&HasRejectUnknownNames != 0 {
+			out.RejectUnknownNames = o.RejectUnknownNames
+		}
+		if o.Set&HasOmitZeroFields != 0 {
+			out.OmitZeroFields = o.OmitZeroFields
 		}
 		out.Set |= o.Set
 		if o.LegacyDecoder != nil {

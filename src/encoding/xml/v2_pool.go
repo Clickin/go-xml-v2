@@ -8,29 +8,20 @@ package xml
 
 import (
 	"bytes"
+	"math/bits"
 	"sync"
 	"unsafe"
 
 	"encoding/xml/internal/xmlopts"
 )
 
-// Unmarshal, Marshal and MarshalIndent run on pooled state, as the top-level
-// calls of encoding/json/v2 do: a Decoder (with its tokenizer and namespace
-// map) or an Encoder (with its tokenizer-side buffers and output buffer) is
-// taken from a sync.Pool for the duration of one call and put back when it
-// ends. NewDecoder and NewEncoder are not pooled; their callers own the
-// lifecycle.
+// Unmarshal, Marshal and MarshalIndent reuse state only while it remains private.
+// Before invoking an UnmarshalXML or MarshalXML hook, the state is marked exposed:
+// the hook may retain its Decoder or Encoder, so it must not be reset or pooled.
+// NewDecoder and NewEncoder are never pooled.
 //
-// Nothing of the call survives in the pool. Before it is put back the state
-// drops every reference to the caller's data (the input, the values, the
-// Entity map, the CharsetReader and AutoClose settings, the namespace strings),
-// resets the public settings that a custom UnmarshalXML or MarshalXML could
-// have changed, and discards every buffer larger than maxPooled instead of
-// keeping it.
-//
-// The Decoder or Encoder that Unmarshal and Marshal pass to UnmarshalXML and
-// MarshalXML is the pooled one. As with encoding/json/v2, an implementation
-// must not keep it, or the tokens it returned, after it returns.
+// State returned to a pool drops references to caller data and settings, and
+// discards buffers larger than maxPooled.
 
 // maxPooled is the largest buffer, in bytes, that a pooled Decoder or Encoder
 // keeps. It is the limit encoding/json/v2 uses for its pooled buffers.
@@ -63,9 +54,12 @@ func getDecoder(data []byte) *Decoder {
 // putDecoder gives d back to the pool after dropping what the call left in it.
 // It returns the size in bytes of the buffers d keeps.
 func putDecoder(d *Decoder) (retained int) {
+	if d.hookExposed {
+		return 0
+	}
 	// The caller's data and what the tokens and errors refer to.
 	d.t, d.src, d.data, d.in = nil, nil, nil, nil
-	d.nextToken, d.err, d.toClose = nil, nil, Name{}
+	d.next, d.err, d.toClose = pendingToken{}, nil, Name{}
 	d.needClose, d.saving, d.inUnmarshalXML = false, false, false
 	// The public settings: UnmarshalXML can change them mid-call.
 	d.Strict, d.AutoClose, d.Entity, d.CharsetReader, d.DefaultSpace = true, nil, nil, nil, ""
@@ -105,6 +99,16 @@ func putDecoder(d *Decoder) (retained int) {
 type encoderState struct {
 	enc *Encoder
 	buf bytes.Buffer
+
+	bufStats bufferStatistics
+}
+
+// bufferStatistics tracks how well the output buffer is used, to decide
+// whether to keep it; see putEncoder. It is the policy of
+// encoding/json/jsontext for its buffered encoders (go.dev/issue/27735).
+type bufferStatistics struct {
+	strikes int // number of times the buffer was under-utilized
+	prevLen int // length of previous buffer
 }
 
 var encoderPool sync.Pool // of *encoderState
@@ -117,18 +121,27 @@ func getEncoder() *encoderState {
 		st.enc = NewEncoder(&st.buf)
 		return st
 	}
-	st.enc.p.enc.Reset(&st.buf, xmlopts.LegacyOutput(true))
+	st.reset()
 	return st
 }
 
-// result returns the output as a slice that the caller owns, nil if empty. A
-// buffer that putEncoder will drop (it is over maxPooled) is handed over as it
-// is; a pooled one is copied.
+// reset prepares a pooled st for another call.
+func (st *encoderState) reset() {
+	if st.buf.Cap() == 0 && st.bufStats.prevLen > 0 {
+		// Round up to a power of two, at least 64, as jsontext does.
+		st.buf.Grow(1 << bits.Len(uint(st.bufStats.prevLen|63)))
+	}
+	st.enc.p.enc.Reset(&st.buf, xmlopts.LegacyOutput(true))
+}
+
+// result returns the output as a slice that the caller owns, nil if empty.
+// An exposed encoder or oversized buffer will not be reused, so its output
+// needs no copy.
 func (st *encoderState) result() []byte {
 	switch {
 	case st.buf.Len() == 0:
 		return nil
-	case st.buf.Cap() > maxPooled:
+	case st.enc.p.hookExposed || st.buf.Cap() > maxPooled:
 		return st.buf.Bytes()
 	}
 	return bytes.Clone(st.buf.Bytes())
@@ -138,13 +151,30 @@ func (st *encoderState) result() []byte {
 // it. It returns the size in bytes of the buffers st keeps.
 func putEncoder(st *encoderState) (retained int) {
 	p := &st.enc.p
+	if p.hookExposed {
+		return 0
+	}
 	retained += p.enc.Release()
 	clear(p.tags[:cap(p.tags)])
 	p.tags, p.closed = p.tags[:0], false
-	if st.buf.Cap() > maxPooled {
+	// Keep a buffer larger than 4 KiB only if it is sufficiently used: one
+	// that is under a quarter full four times in a row is dropped, so a
+	// single large output is not kept alive by a stream of small ones. The
+	// worst case utilization is thus (25%)/(1+4) = 5%. Above maxPooled a
+	// buffer is never kept.
+	switch c, n := st.buf.Cap(), st.buf.Len(); {
+	case c > maxPooled:
+		st.bufStats = bufferStatistics{}
 		st.buf = bytes.Buffer{}
-	} else {
+	case c <= 4<<10, c/4 <= n:
+		st.bufStats.strikes = 0
 		st.buf.Reset()
+	case st.bufStats.strikes < 4:
+		st.bufStats.strikes++
+		st.buf.Reset()
+	default:
+		st.bufStats = bufferStatistics{prevLen: n}
+		st.buf = bytes.Buffer{}
 	}
 	retained += st.buf.Cap() + cap(p.tags)*int(unsafe.Sizeof(Name{}))
 	encoderPool.Put(st)

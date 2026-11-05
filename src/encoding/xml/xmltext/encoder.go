@@ -43,6 +43,7 @@ import (
 // After the first error every method returns that error and nothing more
 // is written. An Encoder is not safe for concurrent use.
 type Encoder struct {
+	user    any // state of the encoding/xml/v2 call writing to e; see export.go
 	w       io.Writer
 	buf     []byte
 	limit   int
@@ -116,6 +117,7 @@ type encFrame struct {
 	qOff, qLen int32
 	nsMark     int32
 	prefMark   int32
+	seqMark    int32 // e.seq when the element began; restored at its end
 	flags      uint8
 }
 
@@ -155,6 +157,8 @@ func (e *Encoder) Reset(w io.Writer, opts ...Options) {
 		binds:    e.binds[:0],
 		autos:    e.autos[:0],
 		prefixes: e.prefixes[:0],
+		akeys:    e.akeys[:0],
+		user:     e.user,
 		attrSet:  e.attrSet,
 		limit:    4096,
 		legacy:   o.LegacyOutput,
@@ -374,7 +378,7 @@ func (e *Encoder) BeginElement(name Name) error {
 		e.akeys = e.akeys[:0]
 		e.akSetOn = false
 		e.eused.reset()
-		e.stack = append(e.stack, encFrame{name: name.Local, qOff: int32(len(e.arena)), nsMark: int32(len(e.binds)), prefMark: int32(len(e.prefixes))})
+		e.stack = append(e.stack, encFrame{name: name.Local, qOff: int32(len(e.arena)), nsMark: int32(len(e.binds)), prefMark: int32(len(e.prefixes)), seqMark: int32(e.seq)})
 		return nil
 	}
 	e.eager = false
@@ -382,7 +386,7 @@ func (e *Encoder) BeginElement(name Name) error {
 	e.tattrs = e.tattrs[:0]
 	e.pbuf = e.pbuf[:0]
 	e.tspaced = false
-	e.stack = append(e.stack, encFrame{nsMark: int32(len(e.binds)), prefMark: int32(len(e.prefixes))})
+	e.stack = append(e.stack, encFrame{nsMark: int32(len(e.binds)), prefMark: int32(len(e.prefixes)), seqMark: int32(e.seq)})
 	return nil
 }
 
@@ -811,7 +815,7 @@ func (e *Encoder) prefixFor(uri string) string {
 	}
 	for {
 		e.seq++
-		p := "ns" + strconv.Itoa(e.seq)
+		p := genPrefix(e.seq)
 		if e.prefixBound(p) {
 			continue
 		}
@@ -819,6 +823,27 @@ func (e *Encoder) prefixFor(uri string) string {
 		e.autos = append(e.autos, nsBind{prefix: p, uri: uri})
 		return p
 	}
+}
+
+// genPrefixes holds the first generated prefixes so that the common
+// shallow cases need no allocation. A literal is initialized statically.
+var genPrefixes = [...]string{
+	"ns1", "ns2", "ns3", "ns4", "ns5", "ns6", "ns7", "ns8",
+	"ns9", "ns10", "ns11", "ns12", "ns13", "ns14", "ns15", "ns16",
+	"ns17", "ns18", "ns19", "ns20", "ns21", "ns22", "ns23", "ns24",
+	"ns25", "ns26", "ns27", "ns28", "ns29", "ns30", "ns31", "ns32",
+	"ns33", "ns34", "ns35", "ns36", "ns37", "ns38", "ns39", "ns40",
+	"ns41", "ns42", "ns43", "ns44", "ns45", "ns46", "ns47", "ns48",
+	"ns49", "ns50", "ns51", "ns52", "ns53", "ns54", "ns55", "ns56",
+	"ns57", "ns58", "ns59", "ns60", "ns61", "ns62", "ns63", "ns64",
+}
+
+// genPrefix returns the generated prefix number n, counting from 1.
+func genPrefix(n int) string {
+	if n <= len(genPrefixes) {
+		return genPrefixes[n-1]
+	}
+	return string(strconv.AppendInt([]byte("ns"), int64(n), 10))
 }
 
 // flushStart writes the pending start tag. selfClose ends it with "/>".
@@ -1030,6 +1055,9 @@ func (e *Encoder) popFrame() {
 	f := &e.stack[len(e.stack)-1]
 	e.stack = e.stack[:len(e.stack)-1]
 	e.arena = e.arena[:f.qOff]
+	// Generated prefixes go out of scope with the element, so siblings
+	// reuse the same numbers instead of counting up through the document.
+	e.seq = int(f.seqMark)
 	if e.legacy {
 		e.popPrefix(int(f.prefMark))
 	} else {

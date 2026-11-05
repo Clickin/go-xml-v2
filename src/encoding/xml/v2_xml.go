@@ -205,6 +205,7 @@ type Decoder struct {
 	in             source                // how the tokenizer reads src
 	xd             *xmltext.Decoder      // created at the first byte-level read
 	spare          *xmltext.Decoder      // a released tokenizer of a pooled Decoder, taken by open
+	names          *[256]string          // string cache borrowed for the outermost DecodeElement
 	nsPeak         int                   // most entries ns held at once since it was last cleared
 	settings       xmlopts.LegacyDecoder // live public settings supplied to xmltext
 	saving         bool                  // raw input is being captured (,innerxml)
@@ -213,10 +214,13 @@ type Decoder struct {
 	free           *stack
 	needClose      bool
 	toClose        Name
-	nextToken      Token
+	next           pendingToken // a token held back by autoClose
 	ns             map[string]string
 	err            error
 	inUnmarshalXML bool
+	hookExposed    bool           // a custom UnmarshalXML may retain this decoder
+	dsrc           *decoderSource // what DecodeElement reads through; see decodeElement
+	dsrcBusy       bool
 }
 
 // Token returns the next XML token in the input stream.
@@ -246,38 +250,56 @@ type Decoder struct {
 // If Token encounters an unrecognized name space prefix,
 // it uses the prefix as the Space rather than report an error.
 func (d *Decoder) Token() (Token, error) {
-	var t Token
-	var err error
-	if d.stk != nil && d.stk.kind == stkEOF {
-		return nil, io.EOF
+	var st StartElement
+	k, t, err := d.token(&st)
+	switch k {
+	case rawStart:
+		return st, err
+	case rawEnd:
+		return EndElement{st.Name}, err
 	}
-	if d.nextToken != nil {
-		t = d.nextToken
-		d.nextToken = nil
+	return t, err
+}
+
+// token is Token without boxing a start or end element: for k rawStart or
+// rawEnd it stores the element, or the name of the end element, in st. A
+// failure has k rawNone.
+func (d *Decoder) token(st *StartElement) (rawKind, Token, error) {
+	if d.stk != nil && d.stk.kind == stkEOF {
+		return rawNone, nil, io.EOF
+	}
+	var (
+		k   rawKind
+		t   Token // a token other than a start or end element
+		err error
+	)
+	if d.next.k != rawNone {
+		k, *st, t = d.next.k, d.next.st, d.next.t
+		d.next = pendingToken{}
 	} else {
-		if t, err = d.rawToken(); t == nil && err != nil {
+		if k, t, err = d.readRaw(st); k == rawNone && err != nil {
 			if err == io.EOF && d.stk != nil && d.stk.kind != stkEOF {
 				err = d.syntaxError("unexpected EOF")
 			}
-			return nil, err
+			return rawNone, nil, err
 		}
 		// We still have a token to process, so clear any
 		// errors (e.g. EOF) and proceed.
 		err = nil
 	}
 	if !d.Strict {
-		if t1, ok := d.autoClose(t); ok {
-			d.nextToken = t
-			t = t1
+		if name, ok := d.autoClose(k, st.Name); ok {
+			d.next = pendingToken{k, *st, t}
+			k, *st = rawEnd, StartElement{Name: name}
 		}
 	}
-	switch t1 := t.(type) {
-	case StartElement:
+	switch k {
+	case rawStart:
 		// In XML name spaces, the translations listed in the
 		// attributes apply to the element name and
 		// to the other attribute names, so process
 		// the translations first.
-		for _, a := range t1.Attr {
+		for _, a := range st.Attr {
 			if a.Name.Space == xmlnsPrefix {
 				v, ok := d.ns[a.Name.Local]
 				d.pushNs(a.Name.Local, v, ok)
@@ -293,20 +315,30 @@ func (d *Decoder) Token() (Token, error) {
 			}
 		}
 
-		d.pushElement(t1.Name)
-		d.translate(&t1.Name, true)
-		for i := range t1.Attr {
-			d.translate(&t1.Attr[i].Name, false)
+		d.pushElement(st.Name)
+		d.translate(&st.Name, true)
+		for i := range st.Attr {
+			d.translate(&st.Attr[i].Name, false)
 		}
-		t = t1
+		return rawStart, nil, err
 
-	case EndElement:
-		if !d.popElement(&t1) {
-			return nil, d.err
+	case rawEnd:
+		et := EndElement{st.Name}
+		if !d.popElement(&et) {
+			return rawNone, nil, d.err
 		}
-		t = t1
+		st.Name = et.Name
+		return rawEnd, nil, err
 	}
-	return t, err
+	return k, t, err
+}
+
+// pendingToken is a token split as readRaw returns it, kept unboxed while
+// an invented end element goes first.
+type pendingToken struct {
+	k  rawKind
+	st StartElement
+	t  Token
 }
 
 const (
@@ -489,21 +521,20 @@ func (d *Decoder) popElement(t *EndElement) bool {
 
 // If the top element on the stack is autoclosing and
 // t is not the end tag, invent the end tag.
-func (d *Decoder) autoClose(t Token) (Token, bool) {
+func (d *Decoder) autoClose(k rawKind, name Name) (Name, bool) {
 	if d.stk == nil || d.stk.kind != stkStart {
-		return nil, false
+		return Name{}, false
 	}
 	for _, s := range d.AutoClose {
 		if strings.EqualFold(s, d.stk.name.Local) {
-			// This one should be auto closed if t doesn't close it.
-			et, ok := t.(EndElement)
-			if !ok || !strings.EqualFold(et.Name.Local, d.stk.name.Local) {
-				return EndElement{d.stk.name}, true
+			// This one should be auto closed if the token doesn't close it.
+			if k != rawEnd || !strings.EqualFold(name.Local, d.stk.name.Local) {
+				return d.stk.name, true
 			}
 			break
 		}
 	}
-	return nil, false
+	return Name{}, false
 }
 
 var errRawToken = errors.New("xml: cannot use RawToken from UnmarshalXML method")

@@ -342,7 +342,7 @@ func TestPutDecoderClears(t *testing.T) {
 	d.Strict, d.AutoClose, d.Entity = false, []string{"x"}, map[string]string{"a": "b"}
 	d.CharsetReader = func(string, io.Reader) (io.Reader, error) { return nil, nil }
 	d.DefaultSpace = "urn:x"
-	d.nextToken, d.err = CharData("x"), io.EOF
+	d.next, d.err = pendingToken{k: rawOther, t: CharData("x")}, io.EOF
 	d.pushElement(Name{Local: "leftover"})
 	d.ns["q"] = "urn:q"
 	putDecoder(d)
@@ -353,7 +353,7 @@ func TestPutDecoderClears(t *testing.T) {
 	if !d.Strict || d.AutoClose != nil || d.Entity != nil || d.CharsetReader != nil || d.DefaultSpace != "" {
 		t.Errorf("public settings not reset: %+v", d)
 	}
-	if d.nextToken != nil || d.err != nil || d.stk != nil || d.stkDepth != 0 || len(d.ns) != 0 || d.needClose || d.saving {
+	if d.next.k != rawNone || d.next.t != nil || d.err != nil || d.stk != nil || d.stkDepth != 0 || len(d.ns) != 0 || d.needClose || d.saving {
 		t.Errorf("parse state not reset: %+v", d)
 	}
 	for s := d.free; s != nil; s = s.next {
@@ -547,5 +547,143 @@ func TestUnmarshalPanicAndReentry(t *testing.T) {
 		if v.N.N.A != "outer" || string(v.N.N.B) != "bb" {
 			t.Fatalf("outer result damaged by nested calls: %+v", v.N.N)
 		}
+	}
+}
+
+type poolRetainedDecoder struct {
+	decoder *Decoder
+	text    CharData
+	err     error
+}
+
+func (v *poolRetainedDecoder) UnmarshalXML(d *Decoder, start StartElement) error {
+	v.decoder = d
+	d.Entity = map[string]string{"saved": "retained"}
+	if v.err != nil {
+		token, err := d.Token()
+		if err != nil {
+			return err
+		}
+		v.text = token.(CharData)
+		return v.err
+	}
+	return d.Skip()
+}
+
+func TestUnmarshalRetainedDecoder(t *testing.T) {
+	for _, hookErr := range []error{nil, io.ErrUnexpectedEOF} {
+		v := poolRetainedDecoder{err: hookErr}
+		if err := Unmarshal([]byte(`<r>kept &amp; text</r><tail/>`), &v); err != hookErr {
+			t.Fatalf("Unmarshal = %v, want %v", err, hookErr)
+		}
+		for range 3 {
+			var plain string
+			if err := Unmarshal([]byte(`<other>overwritten &amp; text</other>`), &plain); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if v.decoder.Entity["saved"] != "retained" {
+			t.Fatal("retained decoder settings were reset")
+		}
+		if hookErr != nil {
+			if string(v.text) != "kept & text" {
+				t.Fatalf("last token was changed without another Token call: %q", v.text)
+			}
+			if token, err := v.decoder.Token(); err != nil || token != (EndElement{Name{Local: "r"}}) {
+				t.Fatalf("resume after hook error: %v, %v", token, err)
+			}
+			// An incomplete hook leaves its EOF marker, as in the legacy decoder.
+			if token, err := v.decoder.Token(); token != nil || err != io.EOF {
+				t.Fatalf("hook boundary after error: %v, %v", token, err)
+			}
+			continue
+		}
+		token, err := v.decoder.Token()
+		start, ok := token.(StartElement)
+		if err != nil || !ok || start.Name != (Name{Local: "tail"}) {
+			t.Fatalf("resume after Unmarshal: %v, %v", token, err)
+		}
+	}
+}
+
+type poolRetainedEncoder struct {
+	encoder *Encoder
+	err     error
+}
+
+func (v *poolRetainedEncoder) MarshalXML(e *Encoder, start StartElement) error {
+	v.encoder = e
+	if err := e.EncodeElement("kept", start); err != nil {
+		return err
+	}
+	return v.err
+}
+
+func TestMarshalRetainedEncoder(t *testing.T) {
+	for _, indent := range []bool{false, true} {
+		for _, hookErr := range []error{nil, io.ErrUnexpectedEOF} {
+			v := poolRetainedEncoder{err: hookErr}
+			var err error
+			if indent {
+				_, err = MarshalIndent(&v, "", "  ")
+			} else {
+				_, err = Marshal(&v)
+			}
+			if err != hookErr {
+				t.Fatalf("Marshal = %v, want %v", err, hookErr)
+			}
+			for range 3 {
+				if _, err := Marshal(poolPlain{A: "other"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			err = v.encoder.EncodeToken(CharData("continued"))
+			if hookErr == nil {
+				// Marshal closes its encoder on success, just like the legacy API.
+				if err == nil || err.Error() != "use of closed Encoder" {
+					t.Fatalf("retained closed encoder: %v", err)
+				}
+			} else if err != nil {
+				t.Fatalf("continue after hook error: %v", err)
+			} else if err := v.encoder.Flush(); err != nil {
+				t.Fatalf("flush after hook error: %v", err)
+			}
+		}
+	}
+}
+
+// The output buffer follows the jsontext policy: a buffer above 4 KiB that
+// is under a quarter full four times in a row is dropped, and the next one
+// is sized after the last output.
+func TestPoolBufferUtilization(t *testing.T) {
+	type doc struct {
+		XMLName Name   `xml:"d"`
+		S       string `xml:"s"`
+	}
+	big := doc{S: strings.Repeat("x", 32<<10)}
+	small := doc{S: "x"}
+	st := getEncoder()
+	if _, err := st.marshal(big); err != nil {
+		t.Fatal(err)
+	}
+	putEncoder(st)
+	bigCap := st.buf.Cap()
+	if bigCap < 32<<10 {
+		t.Fatalf("buffer of %d bytes after a 32 KiB output", bigCap)
+	}
+	for i := range 5 {
+		// st is reused directly so that the pool cannot hand out another.
+		st.reset()
+		if _, err := st.marshal(small); err != nil {
+			t.Fatal(err)
+		}
+		putEncoder(st)
+		kept := st.buf.Cap() == bigCap
+		if want := i < 4; kept != want {
+			t.Fatalf("small output %d: buffer kept = %v, want %v", i+1, kept, want)
+		}
+	}
+	if st.bufStats.prevLen == 0 || st.bufStats.prevLen > 64 {
+		t.Errorf("prevLen = %d, want the length of the small output", st.bufStats.prevLen)
 	}
 }

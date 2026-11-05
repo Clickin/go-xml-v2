@@ -10,8 +10,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math"
 	"strings"
+	"sync"
 
 	"encoding/xml/internal/xmlopts"
 	"encoding/xml/xmltext"
@@ -71,7 +71,7 @@ func (c chunked) Read(p []byte) (int, error) {
 func (d *Decoder) open() {
 	d.settings = xmlopts.LegacyDecoder{Strict: &d.Strict, Entity: &d.Entity, CharsetReader: &d.CharsetReader}
 	opts := []xmltext.Options{
-		xmltext.MaxDepth(math.MaxInt32), xmltext.MaxTokenSize(0), xmltext.MaxAttributes(0),
+		xmltext.MaxTokenSize(0), xmltext.MaxAttributes(0),
 		xmlopts.RawNesting(true), xmltext.Permissive(true),
 		xmlopts.NewOption(xmlopts.Options{LegacyDecoder: &d.settings}),
 	}
@@ -84,6 +84,7 @@ func (d *Decoder) open() {
 	if d.xd == nil {
 		d.xd = new(xmltext.Decoder)
 	}
+	d.setStringCache(d.names)
 	if data := d.in.bytes(); data != nil {
 		d.xd.ResetBytes(data, opts...)
 	} else {
@@ -117,21 +118,58 @@ func (d *Decoder) line() int {
 	return l
 }
 
+// rawKind tells which field of a raw token result is set.
+type rawKind uint8
+
+const (
+	rawNone  rawKind = iota // no token; err is set
+	rawStart                // start element in st
+	rawEnd                  // end element named st.Name
+	rawOther                // any other token in tok
+)
+
 // rawToken returns the next token without namespace translation or end tag
 // matching beyond what the tokenizer itself does.
-func (d *Decoder) rawToken() (tok Token, err error) {
+func (d *Decoder) rawToken() (Token, error) {
+	var st StartElement
+	k, tok, err := d.readRaw(&st)
+	switch k {
+	case rawStart:
+		return st, err
+	case rawEnd:
+		return EndElement{st.Name}, err
+	}
+	return tok, err
+}
+
+// readRaw is rawToken without boxing start and end elements into a Token,
+// so that Token can translate names and box the result only once. It
+// stores a start element, or the name of an end element, in st.
+func (d *Decoder) readRaw(st *StartElement) (k rawKind, tok Token, err error) {
 	if d.t != nil {
-		return d.t.Token()
+		tok, err = d.t.Token()
+		switch t := tok.(type) {
+		case nil:
+			return rawNone, nil, err
+		case StartElement:
+			*st = t
+			return rawStart, nil, err
+		case EndElement:
+			*st = StartElement{Name: t.Name}
+			return rawEnd, nil, err
+		}
+		return rawOther, tok, err
 	}
 	if d.err != nil {
-		return nil, d.err
+		return rawNone, nil, d.err
 	}
 	if d.needClose {
 		// The last element we read was self-closing and
 		// we returned just the StartElement half.
 		// Return the EndElement half now.
 		d.needClose = false
-		return EndElement{d.toClose}, nil
+		*st = StartElement{Name: d.toClose}
+		return rawEnd, nil, nil
 	}
 	if d.xd == nil {
 		d.open()
@@ -140,34 +178,35 @@ func (d *Decoder) rawToken() (tok Token, err error) {
 	defer func() { d.in.commit(d.xd.InputOffset(), textEnd && err == nil) }()
 	tk, err := d.xd.ReadToken()
 	if err != nil {
-		return nil, d.convertErr(err)
+		return rawNone, nil, d.convertErr(err)
 	}
 	switch tk.Kind() {
 	case xmltext.StartElement:
 		n := tk.RawName()
 		it := tk.Attrs()
-		st := StartElement{Name: Name{Space: n.Space, Local: n.Local}, Attr: make([]Attr, 0, it.Len())}
+		*st = StartElement{Name: Name{Space: n.Space, Local: n.Local}, Attr: make([]Attr, 0, it.Len())}
 		for it.Next() {
 			an := it.RawName()
 			st.Attr = append(st.Attr, Attr{Name{Space: an.Space, Local: an.Local}, string(it.Value())})
 		}
-		return st, nil
+		return rawStart, nil, nil
 	case xmltext.EndElement:
 		n := tk.RawName()
-		return EndElement{Name{Space: n.Space, Local: n.Local}}, nil
+		*st = StartElement{Name: Name{Space: n.Space, Local: n.Local}}
+		return rawEnd, nil, nil
 	case xmltext.Text:
 		textEnd = true
-		return CharData(tk.Text()), nil
+		return rawOther, CharData(tk.Text()), nil
 	case xmltext.CData:
-		return CharData(tk.Text()), nil
+		return rawOther, CharData(tk.Text()), nil
 	case xmltext.Comment:
-		return Comment(tk.Text()), nil
+		return rawOther, Comment(tk.Text()), nil
 	case xmltext.ProcInst:
-		return ProcInst{Target: tk.RawName().Local, Inst: tk.Text()}, nil
+		return rawOther, ProcInst{Target: tk.RawName().Local, Inst: tk.Text()}, nil
 	case xmltext.Directive:
-		return Directive(tk.Text()), nil
+		return rawOther, Directive(tk.Text()), nil
 	}
-	return nil, d.syntaxError("unexpected token")
+	return rawNone, nil, d.syntaxError("unexpected token")
 }
 
 // InputOffset returns the input stream byte offset of the current decoder position.
@@ -221,3 +260,12 @@ func (d *Decoder) stopSaved() {
 }
 
 var _ = bytes.NewReader
+
+var stringCachePool = sync.Pool{New: func() any { return new([256]string) }}
+
+// setStringCache sets the string cache of the tokenizer, if open.
+func (d *Decoder) setStringCache(c *[256]string) {
+	if d.xd != nil {
+		*xmltext.Internal.Export(&xmlopts.AllowInternalUse).StringCache(d.xd) = c
+	}
+}
