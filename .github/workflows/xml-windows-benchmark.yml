@@ -1,0 +1,27 @@
+name: Windows XML benchmark
+on: [push, workflow_dispatch]
+jobs:
+  benchmark:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      - name: Build Go
+        shell: cmd
+        working-directory: src
+        run: make.bat
+      - name: Test XML packages
+        shell: pwsh
+        run: |
+          $env:GOEXPERIMENT = 'xmlv2'
+          ./bin/go test encoding/xml/...
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Benchmark XML
+        shell: pwsh
+        run: |
+          $env:GOEXPERIMENT = 'xmlv2'
+          ./bin/go test encoding/xml/xmltext encoding/xml/v2 -run '^$' -bench 'Benchmark(ReadToken|Marshal|Unmarshal)$' -benchmem -count 3
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
