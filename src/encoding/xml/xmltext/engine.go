@@ -589,3 +589,80 @@ func truncatedMsg(kind Kind, b []byte) (string, int) {
 	}
 	return "", len(b)
 }
+
+// nextDirect locates the token at d.scanPos without the batch, for the
+// common kinds the engine would locate in one step: text, an end tag and a
+// start tag that lie whole in the buffer. It reports false, changing
+// nothing, for anything else, and the engine then locates the token,
+// including every error and every case that needs more input.
+func (d *Decoder) nextDirect() (boundary, bool) {
+	e := d.eng.(*t0Engine)
+	pos := d.scanPos
+	b := d.buf[pos:]
+	if e.dirty || e.cdCont || e.textLimit > 0 || len(b) < 2 {
+		return boundary{}, false
+	}
+	var (
+		kind  Kind
+		end   int
+		flags uint8
+	)
+	switch {
+	case b[0] != '<':
+		kind, end = Text, 1
+		if b[1] != '<' {
+			j := bytes.IndexByte(b[1:], '<')
+			if j < 0 {
+				return boundary{}, false
+			}
+			end += j
+		}
+	case b[1] == '/':
+		kind = EndElement
+		if len(b) > 3 && b[2] != '>' && b[3] == '>' {
+			end = 4
+		} else if j := bytes.IndexByte(b[2:], '>'); j >= 0 {
+			end = j + 3
+		} else {
+			return boundary{}, false
+		}
+	case b[1] != '?' && b[1] != '!':
+		kind = StartElement
+		if end = startTagEnd(b); end < 0 {
+			return boundary{}, false
+		}
+		if bareTag(b[:end]) {
+			flags = flagBare
+		}
+	default:
+		return boundary{}, false
+	}
+	if m := e.maxToken; m > 0 && end > m {
+		return boundary{}, false
+	}
+	d.scanPos = pos + end
+	return boundary{start: pos, end: pos + end, kind: kind, flags: flags}, true
+}
+
+// startTagEnd returns the length of the start tag at the beginning of b, or
+// -1 if b does not hold all of it. It is the scan of t0Engine.startTag
+// without resume state.
+func startTagEnd(b []byte) int {
+	for i := 1; i < len(b); {
+		for i < len(b) && !tagStop[b[i]] {
+			i++
+		}
+		if i == len(b) {
+			break
+		}
+		if b[i] == '>' {
+			return i + 1
+		}
+		j := bytes.IndexByte(b[i+1:], b[i])
+		if j < 0 {
+			break
+		}
+		i += j + 2
+	}
+	return -1
+}

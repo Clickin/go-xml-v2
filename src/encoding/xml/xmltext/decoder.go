@@ -114,6 +114,7 @@ type Decoder struct {
 
 	// effective rule set derived from opts at reset
 	perm        bool // v1 Strict=true acceptance rules
+	direct      bool // strict profile without SplitText: ReadToken may locate tokens itself (nextDirect)
 	loose       bool // v1 Strict=false acceptance rules
 	frags       bool
 	raw         bool  // RawNesting: no stack, no matching
@@ -274,6 +275,7 @@ func (d *Decoder) reset(opts []Options) {
 	d.loose = o.Loose
 	d.raw = o.RawNesting
 	d.perm = o.Permissive || o.Loose
+	d.direct = !d.perm && !d.raw && o.LegacyDecoder == nil && !o.SplitText
 	d.frags = o.AllowFragments
 	if o.Set&xmlopts.HasAllowFragments == 0 {
 		d.frags = d.perm
@@ -477,10 +479,7 @@ func (d *Decoder) makeOwnNames() *stringCache {
 // reports done when the input has no more tokens.
 func (d *Decoder) ensureBoundary() (done bool, err error) {
 	if !d.started {
-		d.started = true
-		if !d.perm {
-			d.skipBOM()
-		}
+		d.start()
 	}
 	for {
 		if d.bi < d.bn {
@@ -516,6 +515,14 @@ func (d *Decoder) ensureBoundary() (done bool, err error) {
 			continue
 		}
 		d.noMore = true
+	}
+}
+
+// start runs once before the first token is located.
+func (d *Decoder) start() {
+	d.started = true
+	if !d.perm {
+		d.skipBOM()
 	}
 }
 
@@ -607,22 +614,32 @@ func (d *Decoder) ReadToken() (Token, error) {
 	if d.opts.LegacyDecoder != nil {
 		d.beginLegacy()
 	}
-	if d.bi >= d.bn {
-		done, err := d.ensureBoundary()
-		if err != nil {
-			return d.fail(err)
+	var bd boundary
+	ok := false
+	if d.bi >= d.bn && d.direct {
+		if !d.started {
+			d.start()
 		}
-		if done {
-			return d.atEOF()
+		bd, ok = d.nextDirect()
+	}
+	if !ok {
+		if d.bi >= d.bn {
+			done, err := d.ensureBoundary()
+			if err != nil {
+				return d.fail(err)
+			}
+			if done {
+				return d.atEOF()
+			}
 		}
+		bd = d.bnd[d.bi]
+		if d.loose && d.shouldAutoClose(bd) {
+			d.kind, d.popEnd = EndElement, true
+			d.attrs = d.attrs[:0]
+			return Token{d: d, kind: EndElement}, nil
+		}
+		d.bi++
 	}
-	bd := d.bnd[d.bi]
-	if d.loose && d.shouldAutoClose(bd) {
-		d.kind, d.popEnd = EndElement, true
-		d.attrs = d.attrs[:0]
-		return Token{d: d, kind: EndElement}, nil
-	}
-	d.bi++
 	var err error
 	switch bd.kind {
 	case StartElement:
