@@ -77,10 +77,13 @@ type state struct {
 	pending []byte // coalesced text and CDATA; reused across documents
 }
 
-func (st *state) consume(path string) (r sample, err error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return r, err
+// consume reads path, or parses data when it is not nil (the "mem" mode).
+func (st *state) consume(path string, data []byte) (r sample, err error) {
+	b := data
+	if b == nil {
+		if b, err = os.ReadFile(path); err != nil {
+			return r, err
+		}
 	}
 	d := xmltext.NewDecoderBytes(b)
 	st.pending = st.pending[:0]
@@ -136,12 +139,20 @@ func main() {
 	n, _ := strconv.Atoi(os.Args[3])
 	reps, _ := strconv.Atoi(os.Args[4])
 	var st state
+	var data []byte // optional fifth argument "mem": read the file once, time only the parse
+	if len(os.Args) > 5 && os.Args[5] == "mem" {
+		var err error
+		if data, err = os.ReadFile(path); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
 	out := make([]sample, 0, n)
 	for i := -w; i < n; i++ {
 		start := time.Now()
 		var r sample
 		for j := 0; j < reps; j++ {
-			x, e := st.consume(path)
+			x, e := st.consume(path, data)
 			if e != nil {
 				fmt.Fprintln(os.Stderr, e)
 				os.Exit(1)
