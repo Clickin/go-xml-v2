@@ -17,7 +17,11 @@ func benchDocs() map[string][]byte {
 	ent := strings.Repeat(`<t>a &amp; b &lt; c &#x41; d &quot;</t>`+"\n", 25000)
 	ascii := strings.Repeat("The quick brown fox jumps over the lazy dog. ", 25000)
 	kor := strings.Repeat("가나다라마바사아자차카타파하 ", 60000)
+	korTags := strings.Repeat(`<항목 번호="1" 이름="가나다"><값>라마바</값></항목>`+"\n", 20000)
+	attrRefs := strings.Repeat(`<a href="/p?x=1&amp;y=2" title="A &quot;B&quot; C">t</a>`+"\n", 20000)
 	return map[string][]byte{
+		"KoreanTags":  []byte("<r>" + korTags + "</r>"),
+		"AttrRefs":    []byte("<r>" + attrRefs + "</r>"),
 		"TagHeavy":    []byte("<r>" + tag + "</r>"),
 		"EntityHeavy": []byte("<r>" + ent + "</r>"),
 		"ASCII":       []byte("<r>" + ascii + "</r>"),

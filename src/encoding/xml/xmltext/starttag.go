@@ -258,16 +258,18 @@ func (d *Decoder) parseStartTag(bd boundary) error {
 }
 
 // readStartTag reads the start tag at d.buf[pos:] for readDirect in one pass,
-// without locating it first, when it has the common shape: ASCII names with
-// at most one colon, quoted attribute values of plain ASCII characters
-// (no '&', '<', control or non-ASCII bytes) and fewer than attrSetMin
-// distinct attributes. It fills d.attrs as parseStartTag would. It reports
-// false for any other tag, and for one that does not end inside the buffer,
-// and parseStartTag then reads the tag from a boundary; that includes every
-// tag with a syntax error, so errors are reported as before.
+// without locating it first, when it is well formed, its attribute values
+// are quoted and it has fewer than attrSetMin attributes. It fills d.attrs as
+// parseStartTag would. It reports false for any other tag, and for one that
+// does not end inside the buffer, and parseStartTag then reads the tag from a
+// boundary; that includes every tag with a syntax error, so errors are
+// reported as before.
 func (d *Decoder) readStartTag(pos int) (bool, error) {
 	b := d.buf[pos:] // b[0] == '<'
 	name, colon, i := scanQName(b, 1)
+	if name == 0 {
+		name, colon, i = wideName(b, 1)
+	}
 	if name == 0 || i >= len(b) || colon >= 0 && string(b[1:1+colon]) == "xmlns" {
 		return false, nil
 	}
@@ -298,6 +300,9 @@ func (d *Decoder) readStartTag(pos int) (bool, error) {
 		ns := i
 		n, acolon, j := scanQName(b, ns)
 		if n == 0 {
+			n, acolon, j = wideName(b, ns)
+		}
+		if n == 0 {
 			return false, nil
 		}
 		an := b[ns:j]
@@ -320,8 +325,12 @@ func (d *Decoder) readStartTag(pos int) (bool, error) {
 			}
 			ve++
 		}
+		val, valEnd, verbatim := pos+vs, pos+ve, true
 		if ve >= len(b) || b[ve] != q {
-			return false, nil
+			var ok bool
+			if ve, val, valEnd, verbatim, ok = d.wideValue(pos, vs, ve, q); !ok {
+				return false, nil
+			}
 		}
 		i = ve + 1
 		for k := range d.attrs {
@@ -329,7 +338,7 @@ func (d *Decoder) readStartTag(pos int) (bool, error) {
 				return false, nil
 			}
 		}
-		span := attrSpan{name: pos + ns, colon: acolon, nameEnd: pos + j, val: pos + vs, valEnd: pos + ve, verbatim: true}
+		span := attrSpan{name: pos + ns, colon: acolon, nameEnd: pos + j, val: val, valEnd: valEnd, verbatim: verbatim}
 		if acolon >= 0 {
 			span.decl = string(an[:acolon]) == "xmlns"
 		} else {
@@ -338,6 +347,39 @@ func (d *Decoder) readStartTag(pos int) (bool, error) {
 		hasDecl = hasDecl || span.decl
 		d.attrs = append(d.attrs, span)
 	}
+}
+
+// wideValue reads, for readStartTag, a quoted attribute value starting at
+// d.buf[pos+vs:] whose bytes from pos+pfxEnd on are not plain ASCII:
+// references, literal white space or non-ASCII characters. It does the checks
+// and decoding of parseStartTag. It returns the index of the closing quote q
+// relative to pos and the value as attrSpan holds it, or false if the value
+// does not end inside the buffer or has an error, which parseStartTag then
+// reports.
+func (d *Decoder) wideValue(pos, vs, pfxEnd int, q byte) (ve, val, valEnd int, verbatim, ok bool) {
+	b := d.buf[pos:]
+	k := bytes.IndexByte(b[pfxEnd:], q)
+	if k < 0 {
+		return 0, 0, 0, false, false
+	}
+	ve = pfxEnd + k
+	v, pfx := b[vs:ve], pfxEnd-vs
+	if bytes.IndexByte(v[pfx:], '<') >= 0 {
+		return 0, 0, 0, false, false
+	}
+	first, err := d.scanText(v, pos+vs, false, true)
+	if err != nil {
+		return 0, 0, 0, false, false
+	}
+	if first = firstAttrSpace(v, pfx, first); first < 0 {
+		return ve, pos + vs, pos + ve, true, true
+	}
+	start := len(d.attrBuf)
+	d.attrBuf = slices.Grow(d.attrBuf, len(v))
+	if d.attrBuf, err = d.decodeFused(append(d.attrBuf, v[:first]...), v, first, pos+vs, false, true); err != nil {
+		return 0, 0, 0, false, false
+	}
+	return ve, start, len(d.attrBuf), false, true
 }
 
 // endStartTag completes readStartTag for a tag of n bytes.
@@ -363,7 +405,7 @@ func boolInt(b bool) int {
 // returns the name's length, the offset of its colon or -1, and the index
 // after it; a length of 0 means there is no such name at b[i:]: it does not
 // start with a name start character, has a second colon, an empty prefix or
-// local part, or a byte the table does not settle.
+// local part, or a byte the table does not settle. wideName then decides.
 func scanQName(b []byte, i int) (n, colon, end int) {
 	start := i
 	if i >= len(b) || nameClass[b[i]] != 1 || b[i] == ':' {
@@ -390,6 +432,27 @@ func scanQName(b []byte, i int) (n, colon, end int) {
 		return 0, -1, i
 	}
 	return n, colon, i
+}
+
+// wideName decides a name that scanQName does not accept, such as one with
+// a non-ASCII byte, with the checks of validName and splitName: a valid XML
+// name with at most one colon, which neither starts nor ends it and is
+// followed by a name start character. It returns what scanQName returns.
+func wideName(b []byte, i int) (n, colon, end int) {
+	end = i
+	for end < len(b) && !isSpace(b[end]) && b[end] != '/' && b[end] != '>' && b[end] != '=' {
+		end++
+	}
+	name := b[i:end]
+	if !validName(name) {
+		return 0, -1, end
+	}
+	colon = bytes.IndexByte(name, ':')
+	if colon >= 0 && (colon == 0 || colon == len(name)-1 ||
+		bytes.IndexByte(name[colon+1:], ':') >= 0 || !startsName(name[colon+1:])) {
+		return 0, -1, end
+	}
+	return len(name), colon, end
 }
 
 // commitStartTag completes a start tag at d.buf[at:] whose attributes are in
