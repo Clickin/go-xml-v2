@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # WSL counterpart of windows.ps1. Run in one WSL session:
-#   bash /mnt/g/programming/go-xml-v2/benchmark-results/small-ab/wsl.sh <new-commit>
+#   bash /mnt/g/programming/go-xml-v2/benchmark-results/small-ab/wsl.sh <new-commit> [rounds] [cpus] [outdir]
 # It prepares /tmp/go-xml-v2-benchmark with ../linux-amd64/setup.sh (Go at
 # bd51491007, JDK, LF assets), builds the Go harness at that tree (base) and
 # with decoder.go from <new-commit> (new), rebuilds Rust and Java, and runs run.py.
 set -euo pipefail
 new=${1:?usage: wsl.sh <commit with the xmltext change>}
-rounds=${2:-3}
+rounds=${2:-9}
+# WSL does not expose hybrid core types, and its virtual CPUs are scheduled by
+# the host, so this only keeps the processes on fixed virtual CPUs.
+cpus=${3:-0,2,4,6,8,10}
+outdir=${4:-linux-amd64-pinned}
 root=/mnt/g/programming/go-xml-v2
 work=/tmp/go-xml-v2-benchmark
 src="$root/benchmark-results/windows-amd64/assets-comparison"
@@ -29,4 +33,4 @@ javac -cp "$work/woodstox.jar:$work/stax2.jar" -d "$work/java" "$src/AssetBench.
 python3 "$root/benchmark-results/small-ab/run.py" --assets "$work/assets" --go-base "$work/ab-go-base" \
   --go-new "$work/ab-go-new" --quick-xml "$work/cargo-target/release/xml-assets-comparison" \
   --java "$work/jdk/bin/java" --java-cp "$work/java:$work/woodstox.jar:$work/stax2.jar" \
-  --out "$root/benchmark-results/small-ab/linux-amd64" --rounds "$rounds"
+  --out "$root/benchmark-results/small-ab/$outdir" --rounds "$rounds" --cpus "$cpus"

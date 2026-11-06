@@ -2,7 +2,7 @@
 # src/encoding/xml/xmltext/decoder.go from -New (new), rebuilds the Rust and
 # Java harnesses, and runs run.py. Run from the repository root after the
 # toolchain is built and assets-comparison/run.ps1 has extracted the LF assets.
-param([Parameter(Mandatory)][string]$New, [int]$Rounds = 3)
+param([Parameter(Mandatory)][string]$New, [int]$Rounds = 9, [string]$Cpus = 'auto', [string]$Out = 'windows-amd64-pinned')
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path "$PSScriptRoot/../..").Path
 $src = "$root/benchmark-results/windows-amd64/assets-comparison"
@@ -22,5 +22,5 @@ $jars = 'C:/Users/z1z0b/.m2/repository/com/fasterxml/woodstox/woodstox-core/7.2.
 & javac -cp $jars -d "$root/pkg/asset-java" "$src/AssetBench.java"; if ($LASTEXITCODE) { throw 'javac' }
 & py -3 "$PSScriptRoot/run.py" --assets "$root/pkg/stax-xml-assets-lf" --go-base "$root/pkg/ab-go-base.exe" --go-new "$root/pkg/ab-go-new.exe" `
   --quick-xml "$root/pkg/asset-target/release/xml-assets-comparison.exe" --java java --java-cp "$root/pkg/asset-java;$jars" `
-  --out "$PSScriptRoot/windows-amd64" --rounds $Rounds
+  --out "$PSScriptRoot/$Out" --rounds $Rounds --cpus $Cpus
 if ($LASTEXITCODE) { throw 'run.py' }
