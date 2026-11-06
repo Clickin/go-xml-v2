@@ -71,18 +71,15 @@ func (t Token) Name() Name {
 			}
 			return Name{Space: e.defaultNS, Local: e.local}
 		}
-		return d.resolve(d.nameArena[e.nameOff:e.nameOff+e.nameLen], e.colon, e.defaultNS)
+		q := d.nameArena[e.nameOff : e.nameOff+e.nameLen]
+		if e.local == "" {
+			e.local = d.internBytes(q[e.colon+1:])
+		}
+		return Name{Space: d.spaceOf(q[:e.colon], true), Local: e.local}
 	case ProcInst:
 		return Name{Local: d.internBytes(d.buf[d.nameS:d.nameE])}
 	}
 	return Name{}
-}
-
-func (d *Decoder) resolve(q []byte, colon int, def string) Name {
-	if colon < 0 {
-		return Name{Space: def, Local: d.internBytes(q)}
-	}
-	return Name{Space: d.spaceOf(q[:colon], true), Local: d.internBytes(q[colon+1:])}
 }
 
 // spaceOf resolves a prefix to its URI. An unbound prefix (possible only in
@@ -247,10 +244,21 @@ func (t Token) RawName() Name {
 		}
 		e := &d.stack[len(d.stack)-1]
 		q := d.nameArena[e.nameOff : e.nameOff+e.nameLen]
-		if e.colon < 0 {
-			return Name{Local: d.internBytes(q)}
+		if d.rawEnd {
+			if e.colon < 0 {
+				return Name{Local: d.internBytes(q)}
+			}
+			return Name{Space: d.internBytes(q[:e.colon]), Local: d.internBytes(q[e.colon+1:])}
 		}
-		return Name{Space: d.internBytes(q[:e.colon]), Local: d.internBytes(q[e.colon+1:])}
+		// The start and end tokens of an element share the stack entry, so the
+		// end tag reuses the local name interned for the start tag.
+		if e.local == "" {
+			e.local = d.internBytes(q[e.colon+1:])
+		}
+		if e.colon < 0 {
+			return Name{Local: e.local}
+		}
+		return Name{Space: d.internBytes(q[:e.colon]), Local: e.local}
 	case ProcInst:
 		return Name{Local: d.internBytes(d.buf[d.nameS:d.nameE])}
 	}

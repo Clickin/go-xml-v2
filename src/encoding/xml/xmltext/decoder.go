@@ -81,7 +81,7 @@ type attrSpan struct {
 type stackEntry struct {
 	nameOff, nameLen int    // qname bytes in nameArena
 	colon            int    // offset of ':' within the qname, or -1
-	local            string // interned local name, filled on first Name()
+	local            string // interned local name, filled on first Name() or RawName()
 	nsMark           int    // len(bindings) before this element's declarations
 	defaultNS        string
 	nsChanged        bool // v1 keeps namespace undo records on a loose mismatch
