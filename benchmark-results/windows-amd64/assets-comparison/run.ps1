@@ -1,14 +1,30 @@
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path "$PSScriptRoot/../../..").Path
-$assetDir = "$root/pkg/stax-xml-reference/packages/benchmark/assets"
+# Extract the assets as committed (LF). A normal Windows checkout with
+# core.autocrlf=true rewrites them to CRLF, which changes the input.
+$ref = "$root/pkg/stax-xml-reference"
+$rev = '07cca8a0f53f83a47de4149f84749e4259dc9360'
+$assetDir = "$root/pkg/stax-xml-assets-lf"
+$tar = "$root/pkg/stax-xml-assets-lf.tar"
+if (Test-Path $assetDir) { Remove-Item -Recurse -Force $assetDir }
+New-Item -ItemType Directory $assetDir | Out-Null
+& git -C $ref -c core.autocrlf=false -c core.eol=lf archive -o $tar $rev packages/benchmark/assets
+if ($LASTEXITCODE -ne 0) { throw 'git archive failed' }
+& tar -xf $tar -C $assetDir --strip-components=3
+if ($LASTEXITCODE -ne 0) { throw 'tar failed' }
+# assets.csv pins the LF sizes and hashes; abort on any difference.
+$expectedAssets = Import-Csv "$PSScriptRoot/assets.csv"
+foreach ($a in $expectedAssets) {
+ $path = "$assetDir/$($a.asset)"
+ if ((Get-Item $path).Length -ne [long]$a.bytes -or (Get-FileHash $path -Algorithm SHA256).Hash -ne $a.sha256) { throw "$($a.asset) does not match assets.csv (expected LF bytes from $rev)" }
+}
 $jars = 'C:/Users/z1z0b/.m2/repository/com/fasterxml/woodstox/woodstox-core/7.2.0/woodstox-core-7.2.0.jar;C:/Users/z1z0b/.m2/repository/org/codehaus/woodstox/stax2-api/4.3.0/stax2-api-4.3.0.jar'
 $cp = "$root/pkg/asset-java;$jars"
-$assets = @('mini-sample.xml','sample.xml','complex.xml','books.xml','ptest.xml','crlf.xml','midsize.xml','large.xml')
+$assets = @($expectedAssets.asset)
 $env:GOMAXPROCS='8'
-$samples = @(); $metadata = @()
+$samples = @()
 foreach ($file in $assets) {
  $path = "$assetDir/$file"; $size = (Get-Item $path).Length
- $metadata += [pscustomobject]@{asset=$file;bytes=$size;sha256=(Get-FileHash $path -Algorithm SHA256).Hash}
  $runs = if ($size -gt 20MB) { 5 } else { 9 }; $warmups=if ($size -gt 20MB) { 2 } else { 4 }; $reps=if ($size -lt 1MB) { 100 } else { 1 }
  $expected = $null
  foreach ($impl in @('go','woodstox','quick-xml')) {
@@ -29,7 +45,6 @@ foreach ($file in $assets) {
  }
  Write-Host "$file parity $expected"
 }
-$metadata | Export-Csv "$PSScriptRoot/assets.csv" -NoTypeInformation
 $samples | Export-Csv "$PSScriptRoot/samples.csv" -NoTypeInformation
 $samples | Group-Object asset,implementation | ForEach-Object {
  $g=$_.Group; $s=@($g.seconds | Sort-Object); $mid=[int][Math]::Floor($s.Count/2); $median=[double]$s[$mid]
