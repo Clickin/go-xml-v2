@@ -1,0 +1,14 @@
+{
+  "platform": "Windows-11-10.0.26300-SP0",
+  "machine": "AMD64",
+  "cpus": [
+    0,
+    2,
+    4,
+    6,
+    8,
+    10
+  ],
+  "gomaxprocs": "6",
+  "rounds": 9
+}
