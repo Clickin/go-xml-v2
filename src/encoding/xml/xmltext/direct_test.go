@@ -51,6 +51,7 @@ var directOptions = [][]Options{
 	{AllowFragments(true)},
 	{MaxAttributes(2), MaxDepth(3)},
 	{BufferSize(16)},
+	{WithCharsetReader(func(label string, r io.Reader) (io.Reader, error) { return r, nil })},
 }
 
 // checkDirect reads in with every reader and option set, once as usual and
@@ -128,6 +129,8 @@ func directSeeds() []string {
 		"<r><a "+strings.Repeat("b", 1)+"=\"1\" "+attrList(40)+"/></r>",
 		"<r><a "+attrList(31)+"/><b "+attrList(30)+" a0=\"x\"/></r>",
 		"<a/><b/>",
+		`<?xml version="1.0" encoding="x-test"?><r><a b="1">t</a><c/></r>`,
+		`<?xml version="1.0" encoding="x-test"?>`+"\n<r>"+strings.Repeat(`<a b="1">t</a>`, 40)+"</r>",
 		"<a></a><b x='1'></b>",
 	)
 }
