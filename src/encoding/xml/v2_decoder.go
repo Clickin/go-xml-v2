@@ -132,7 +132,7 @@ const (
 // matching beyond what the tokenizer itself does.
 func (d *Decoder) rawToken() (Token, error) {
 	var st StartElement
-	k, tok, err := d.readRaw(&st)
+	k, tok, err := d.readRaw(&st, false)
 	switch k {
 	case rawStart:
 		return st, err
@@ -145,7 +145,10 @@ func (d *Decoder) rawToken() (Token, error) {
 // readRaw is rawToken without boxing start and end elements into a Token,
 // so that Token can translate names and box the result only once. It
 // stores a start element, or the name of an end element, in st.
-func (d *Decoder) readRaw(st *StartElement) (k rawKind, tok Token, err error) {
+// If lazy, a start element read by the tokenizer gets no Attr: its
+// attributes stay in the tokenizer (see startTok) until the next read, and
+// d.lazyStart is set.
+func (d *Decoder) readRaw(st *StartElement, lazy bool) (k rawKind, tok Token, err error) {
 	if d.t != nil {
 		tok, err = d.t.Token()
 		switch t := tok.(type) {
@@ -183,11 +186,11 @@ func (d *Decoder) readRaw(st *StartElement) (k rawKind, tok Token, err error) {
 	switch tk.Kind() {
 	case xmltext.StartElement:
 		n := tk.RawName()
-		it := tk.Attrs()
-		*st = StartElement{Name: Name{Space: n.Space, Local: n.Local}, Attr: make([]Attr, 0, it.Len())}
-		for it.Next() {
-			an := it.RawName()
-			st.Attr = append(st.Attr, Attr{Name{Space: an.Space, Local: an.Local}, string(it.Value())})
+		*st = StartElement{Name: Name{Space: n.Space, Local: n.Local}}
+		if lazy {
+			d.lazyStart = true
+		} else {
+			st.Attr = rawAttrs(tk)
 		}
 		return rawStart, nil, nil
 	case xmltext.EndElement:
@@ -207,6 +210,18 @@ func (d *Decoder) readRaw(st *StartElement) (k rawKind, tok Token, err error) {
 		return rawOther, Directive(tk.Text()), nil
 	}
 	return rawNone, nil, d.syntaxError("unexpected token")
+}
+
+// rawAttrs returns the attributes of the start element tk, with their
+// names untranslated.
+func rawAttrs(tk xmltext.Token) []Attr {
+	it := tk.Attrs()
+	attr := make([]Attr, 0, it.Len())
+	for it.Next() {
+		an := it.RawName()
+		attr = append(attr, Attr{Name{Space: an.Space, Local: an.Local}, string(it.Value())})
+	}
+	return attr
 }
 
 // InputOffset returns the input stream byte offset of the current decoder position.

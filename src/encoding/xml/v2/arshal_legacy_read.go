@@ -189,13 +189,9 @@ func (us *unmarshalState) legacyValue(val reflect.Value, check bool) error {
 			if !ok {
 				break
 			}
-			var s string
-			if stable {
-				s = unsafe.String(unsafe.SliceData(value), len(value))
-			} else {
-				s = string(value)
-			}
-			a := xmltext.Attr{Name: an, Value: s}
+			// A view of the value: legacyAttr copies what it keeps
+			// unless the value is stable.
+			a := xmltext.Attr{Name: an, Value: unsafe.String(unsafe.SliceData(value), len(value))}
 			handled, anyAttr := false, -1
 			for i := range sf.list {
 				f := &sf.list[i]
@@ -203,7 +199,7 @@ func (us *unmarshalState) legacyValue(val reflect.Value, check bool) error {
 				case fAttr:
 					fv, _ := fieldValue(addressableValue{Value: sv}, f.index, true)
 					if an.Local == f.name.Local && (f.name.Space == "" || f.name.Space == an.Space) {
-						if err := us.legacyAttr(fv.Value, a); err != nil {
+						if err := us.legacyAttr(fv.Value, a, stable); err != nil {
 							return err
 						}
 						handled = true
@@ -216,7 +212,7 @@ func (us *unmarshalState) legacyValue(val reflect.Value, check bool) error {
 			}
 			if !handled && anyAttr >= 0 {
 				fv, _ := fieldValue(addressableValue{Value: sv}, sf.list[anyAttr].index, true)
-				if err := us.legacyAttr(fv.Value, a); err != nil {
+				if err := us.legacyAttr(fv.Value, a, stable); err != nil {
 					return err
 				}
 			}
@@ -366,8 +362,9 @@ func legacyTextUnmarshaler(val reflect.Value) (encoding.TextUnmarshaler, bool) {
 }
 
 // legacyAttr sets val from attribute a, as encoding/xml's
-// Decoder.unmarshalAttr does.
-func (us *unmarshalState) legacyAttr(val reflect.Value, a xmltext.Attr) error {
+// Decoder.unmarshalAttr does. Unless stable, a.Value is a view that val
+// must not keep.
+func (us *unmarshalState) legacyAttr(val reflect.Value, a xmltext.Attr, stable bool) error {
 	h := us.hooks
 	if val.Kind() == reflect.Pointer {
 		if val.IsNil() {
@@ -385,17 +382,20 @@ func (us *unmarshalState) legacyAttr(val reflect.Value, a xmltext.Attr) error {
 		n := val.Len()
 		val.Grow(1)
 		val.SetLen(n + 1)
-		if err := us.legacyAttr(val.Index(n), a); err != nil {
+		if err := us.legacyAttr(val.Index(n), a, stable); err != nil {
 			val.SetLen(n)
 			return err
 		}
 		return nil
 	}
 	if val.Type() == h.AttrType {
+		if !stable {
+			a.Value = strings.Clone(a.Value)
+		}
 		setAttr(val, a)
 		return nil
 	}
-	// A string field takes the value as is and only a []byte field gets
+	// A string field takes a stable value as is and a []byte field gets
 	// its own copy; other kinds are parsed from a view of it.
 	v := val
 	if v.Kind() == reflect.Pointer {
@@ -406,6 +406,9 @@ func (us *unmarshalState) legacyAttr(val reflect.Value, a xmltext.Attr) error {
 	}
 	switch v.Kind() {
 	case reflect.String:
+		if !stable {
+			a.Value = strings.Clone(a.Value)
+		}
 		v.SetString(a.Value)
 		return nil
 	case reflect.Slice:

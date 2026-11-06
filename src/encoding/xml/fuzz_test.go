@@ -217,9 +217,10 @@ func FuzzUnmarshal(f *testing.F) {
 			if err := Unmarshal(in, v); err != nil || i >= fuzzRoundtripTargets {
 				continue
 			}
-			if v, ok := v.(*fuzzInner); ok && !fuzzValidName(v.XMLName.Local) {
+			if v, ok := v.(*fuzzInner); ok && (!fuzzValidName(v.XMLName.Local) || v.XMLName.Local == "xmlns") {
 				// Unmarshal takes the local name after a colon as is,
-				// so <a:0/> gives a name that Marshal writes as <0>.
+				// so <a:0/> gives a name that Marshal writes as <0>,
+				// and <a:xmlns/> one that reads back without its space.
 				continue
 			}
 			b, err := Marshal(v)

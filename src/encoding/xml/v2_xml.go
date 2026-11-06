@@ -221,6 +221,7 @@ type Decoder struct {
 	hookExposed    bool           // a custom UnmarshalXML may retain this decoder
 	dsrc           *decoderSource // what DecodeElement reads through; see decodeElement
 	dsrcBusy       bool
+	lazyStart      bool // the start element token last returned has its attributes in startTok
 }
 
 // Token returns the next XML token in the input stream.
@@ -251,7 +252,7 @@ type Decoder struct {
 // it uses the prefix as the Space rather than report an error.
 func (d *Decoder) Token() (Token, error) {
 	var st StartElement
-	k, t, err := d.token(&st)
+	k, t, err := d.token(&st, false)
 	switch k {
 	case rawStart:
 		return st, err
@@ -263,8 +264,11 @@ func (d *Decoder) Token() (Token, error) {
 
 // token is Token without boxing a start or end element: for k rawStart or
 // rawEnd it stores the element, or the name of the end element, in st. A
-// failure has k rawNone.
-func (d *Decoder) token(st *StartElement) (rawKind, Token, error) {
+// failure has k rawNone. If lazy, a start element may be returned without
+// Attr, with d.lazyStart set: its attributes are then read from
+// d.startTok() and translated by the caller.
+func (d *Decoder) token(st *StartElement, lazy bool) (rawKind, Token, error) {
+	d.lazyStart = false
 	if d.stk != nil && d.stk.kind == stkEOF {
 		return rawNone, nil, io.EOF
 	}
@@ -277,7 +281,7 @@ func (d *Decoder) token(st *StartElement) (rawKind, Token, error) {
 		k, *st, t = d.next.k, d.next.st, d.next.t
 		d.next = pendingToken{}
 	} else {
-		if k, t, err = d.readRaw(st); k == rawNone && err != nil {
+		if k, t, err = d.readRaw(st, lazy); k == rawNone && err != nil {
 			if err == io.EOF && d.stk != nil && d.stk.kind != stkEOF {
 				err = d.syntaxError("unexpected EOF")
 			}
@@ -289,6 +293,10 @@ func (d *Decoder) token(st *StartElement) (rawKind, Token, error) {
 	}
 	if !d.Strict {
 		if name, ok := d.autoClose(k, st.Name); ok {
+			if d.lazyStart {
+				// The start element waits a call: give it its attributes.
+				st.Attr, d.lazyStart = rawAttrs(d.startTok()), false
+			}
 			d.next = pendingToken{k, *st, t}
 			k, *st = rawEnd, StartElement{Name: name}
 		}
@@ -299,6 +307,12 @@ func (d *Decoder) token(st *StartElement) (rawKind, Token, error) {
 		// attributes apply to the element name and
 		// to the other attribute names, so process
 		// the translations first.
+		if d.lazyStart {
+			d.lazyDecls()
+			d.pushElement(st.Name)
+			d.translate(&st.Name, true)
+			return rawStart, nil, err
+		}
 		for _, a := range st.Attr {
 			if a.Name.Space == xmlnsPrefix {
 				v, ok := d.ns[a.Name.Local]
@@ -331,6 +345,44 @@ func (d *Decoder) token(st *StartElement) (rawKind, Token, error) {
 		return rawEnd, nil, err
 	}
 	return k, t, err
+}
+
+// startTok returns the tokenizer's current token, a start element.
+func (d *Decoder) startTok() xmltext.Token {
+	return xmltext.Internal.Export(&xmlopts.AllowInternalUse).StartToken(d.xd)
+}
+
+// lazyDecls records the name space declarations among the attributes of
+// startTok, as token does for those of a start element.
+func (d *Decoder) lazyDecls() {
+	if !xmltext.Internal.Export(&xmlopts.AllowInternalUse).RawDecl(d.xd) {
+		return
+	}
+	for it := d.startTok().Attrs(); it.Next(); {
+		n := it.RawName()
+		var local string
+		switch {
+		case n.Space == xmlnsPrefix:
+			local = n.Local
+		case n.Space == "" && n.Local == xmlnsPrefix:
+			// Default space for untagged names
+		default:
+			continue
+		}
+		v, ok := d.ns[local]
+		d.pushNs(local, v, ok)
+		d.ns[local] = string(it.Value())
+		d.nsPeak = max(d.nsPeak, len(d.ns))
+	}
+}
+
+// lazyAttrs returns the attributes of startTok with translated names.
+func (d *Decoder) lazyAttrs() []Attr {
+	attr := rawAttrs(d.startTok())
+	for i := range attr {
+		d.translate(&attr[i].Name, false)
+	}
+	return attr
 }
 
 // pendingToken is a token split as readRaw returns it, kept unboxed while

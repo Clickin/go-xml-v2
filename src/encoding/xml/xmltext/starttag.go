@@ -236,6 +236,7 @@ func (d *Decoder) parseStartTag(bd boundary) error {
 		d.kind = StartElement
 		d.nameS, d.nameE, d.colon = at+1, at+1+len(name), colon
 		d.selfEnd = selfClose
+		d.rawDecl = hasDecl
 		return nil
 	}
 	if len(d.stack) == 0 {

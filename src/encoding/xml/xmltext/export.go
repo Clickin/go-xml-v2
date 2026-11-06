@@ -47,5 +47,14 @@ func (export) OpenDepth(d *Decoder) int {
 	return len(d.stack)
 }
 
+// RawDecl reports, for a Decoder with RawNesting, whether the last start
+// element it returned has a namespace declaration among its attributes.
+func (export) RawDecl(d *Decoder) bool { return d.rawDecl }
+
+// StartToken returns the start element token d returned last, which must
+// be d's current token: encoding/xml reads its attributes later than
+// ReadToken without keeping the Token.
+func (export) StartToken(d *Decoder) Token { return Token{d: d, kind: StartElement} }
+
 // Capturing reports whether d has a capture active; see StartCapture.
 func (export) Capturing(d *Decoder) bool { return d.capturing }

@@ -112,6 +112,7 @@ type Decoder struct {
 	loose       bool // v1 Strict=false acceptance rules
 	frags       bool
 	raw         bool  // RawNesting: no stack, no matching
+	rawDecl     bool  // RawNesting: the last start tag declares a namespace
 	pendChar    error // permissive profiles: first bad-character error of the current text run
 	unknownOK   bool
 	illegalRef  bool // appendRef met a numeric reference to a char XML forbids
