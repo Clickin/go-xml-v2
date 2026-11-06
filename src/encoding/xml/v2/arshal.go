@@ -363,10 +363,14 @@ func lookupArshaler(t reflect.Type) *arshaler {
 // marshalValue writes va as element(s) named name, giving the functions of
 // WithMarshalers precedence over the type's own.
 func (ms *marshalState) marshalValue(name xmltext.Name, va addressableValue) error {
-	t := va.Type()
-	a := lookupArshaler(t)
+	return ms.marshalWith(name, va, lookupArshaler(va.Type()))
+}
+
+// marshalWith is marshalValue with a, the arshaler of va's type, already
+// looked up, as a struct field or the item of a slice has it.
+func (ms *marshalState) marshalWith(name xmltext.Name, va addressableValue, a *arshaler) error {
 	if ms.marshalers != nil {
-		if f := ms.marshalers.lookup(t); f != nil {
+		if f := ms.marshalers.lookup(va.Type()); f != nil {
 			return f.marshal(ms, name, va, a)
 		}
 	}
@@ -375,8 +379,12 @@ func (ms *marshalState) marshalValue(name xmltext.Name, va addressableValue) err
 
 // appendTextValue appends the text form of va.
 func (ms *marshalState) appendTextValue(dst []byte, va addressableValue) ([]byte, error) {
+	return ms.appendTextWith(dst, va, lookupArshaler(va.Type()))
+}
+
+// appendTextWith is appendTextValue with the arshaler of va's type.
+func (ms *marshalState) appendTextWith(dst []byte, va addressableValue, a *arshaler) ([]byte, error) {
 	t := va.Type()
-	a := lookupArshaler(t)
 	if ms.marshalers != nil {
 		if f := ms.marshalers.lookup(t); f != nil && f.text != nil {
 			b, err := f.text(ms, dst, va)
@@ -393,10 +401,13 @@ func (ms *marshalState) appendTextValue(dst []byte, va addressableValue) ([]byte
 
 // unmarshalValue reads the element started by start into va.
 func (us *unmarshalState) unmarshalValue(va addressableValue) error {
-	t := va.Type()
-	a := lookupArshaler(t)
+	return us.unmarshalWith(va, lookupArshaler(va.Type()))
+}
+
+// unmarshalWith is unmarshalValue with the arshaler of va's type.
+func (us *unmarshalState) unmarshalWith(va addressableValue, a *arshaler) error {
 	if us.unmarshalers != nil {
-		if f := us.unmarshalers.lookup(t); f != nil {
+		if f := us.unmarshalers.lookup(va.Type()); f != nil {
 			return f.unmarshal(us, va, a)
 		}
 	}
@@ -405,8 +416,12 @@ func (us *unmarshalState) unmarshalValue(va addressableValue) error {
 
 // parseTextValue sets va from its text form b.
 func (us *unmarshalState) parseTextValue(b []byte, va addressableValue) error {
+	return us.parseTextWith(b, va, lookupArshaler(va.Type()))
+}
+
+// parseTextWith is parseTextValue with the arshaler of va's type.
+func (us *unmarshalState) parseTextWith(b []byte, va addressableValue, a *arshaler) error {
 	t := va.Type()
-	a := lookupArshaler(t)
 	if us.unmarshalers != nil {
 		if f := us.unmarshalers.lookup(t); f != nil && f.text != nil {
 			if err := f.text(us, b, va); err != SkipFunc {

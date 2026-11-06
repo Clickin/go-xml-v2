@@ -50,7 +50,7 @@ type field struct {
 	parents []string     // a>b>name: [a b]
 	flags   fieldFlags
 
-	fncs *arshaler // set by structFields.init
+	fncs *arshaler // the arshaler of typ; nil under legacy rules
 }
 
 // structFields is the XML view of a struct type.
@@ -129,6 +129,14 @@ func makeStructFields(t reflect.Type, legacy bool) (*structFields, error) {
 			if sf.innerxml < 0 {
 				sf.innerxml = i
 			}
+		}
+	}
+	if !legacy {
+		// As encoding/json/v2 does, look up the arshalers of the fields
+		// once. An arshaler resolves the types it holds only when first
+		// used, so a recursive type does not recurse here.
+		for i := range sf.list {
+			sf.list[i].fncs = lookupArshaler(sf.list[i].typ)
 		}
 	}
 	return sf, nil

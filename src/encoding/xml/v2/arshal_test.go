@@ -471,3 +471,36 @@ func TestNestedInnerXML(t *testing.T) {
 		t.Errorf("got  %+v\nwant %+v", v, want)
 	}
 }
+
+type recTree struct {
+	Name string    `xml:"name,attr"`
+	Kids []recTree `xml:"node"`
+	Next *recTree  `xml:"next"`
+	Alt  *recAlt   `xml:"alt"`
+}
+
+type recAlt struct {
+	Back *recTree `xml:"back"`
+}
+
+// Recursive types, directly, through a slice, a pointer and another
+// struct, round-trip; their arshalers are looked up once per field.
+func TestRecursiveTypes(t *testing.T) {
+	in := recTree{
+		Name: "a",
+		Kids: []recTree{{Name: "b"}, {Name: "c", Kids: []recTree{{Name: "d"}}}},
+		Next: &recTree{Name: "e"},
+		Alt:  &recAlt{Back: &recTree{Name: "f"}},
+	}
+	b, err := Marshal(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out recTree
+	if err := Unmarshal(b, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(in, out) {
+		t.Errorf("round trip of %s:\ngot  %+v\nwant %+v", b, out, in)
+	}
+}

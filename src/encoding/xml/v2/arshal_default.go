@@ -265,10 +265,16 @@ func makeUnsupportedArshaler(t reflect.Type) *arshaler {
 // A slice is one element per item.
 func makeSliceArshaler(t reflect.Type) *arshaler {
 	et := t.Elem()
+	var (
+		once    sync.Once
+		valFncs *arshaler
+	)
+	init := func() { valFncs = lookupArshaler(et) }
 	return &arshaler{
 		marshal: func(ms *marshalState, name xmltext.Name, va addressableValue) error {
+			once.Do(init)
 			for i, n := 0, va.Len(); i < n; i++ {
-				if err := ms.marshalValue(name, addressableValue{va.Index(i), va.forcedAddr}); err != nil {
+				if err := ms.marshalWith(name, addressableValue{va.Index(i), va.forcedAddr}, valFncs); err != nil {
 					return err
 				}
 			}
@@ -283,7 +289,8 @@ func makeSliceArshaler(t reflect.Type) *arshaler {
 			} else {
 				va.Set(reflect.Append(va.Value, reflect.Zero(et)))
 			}
-			return us.unmarshalValue(addressableValue{va.Index(n), false})
+			once.Do(init)
+			return us.unmarshalWith(addressableValue{va.Index(n), false}, valFncs)
 		},
 	}
 }
@@ -306,30 +313,39 @@ func makeArrayArshaler(t reflect.Type) *arshaler {
 // A nil pointer is omitted; unmarshaling allocates.
 func makePointerArshaler(t reflect.Type) *arshaler {
 	et := t.Elem()
+	var (
+		once    sync.Once
+		valFncs *arshaler
+	)
+	init := func() { valFncs = lookupArshaler(et) }
 	return &arshaler{
 		marshal: func(ms *marshalState, name xmltext.Name, va addressableValue) error {
 			if va.IsNil() {
 				return nil
 			}
-			return ms.marshalValue(name, addressableValue{va.Elem(), false})
+			once.Do(init)
+			return ms.marshalWith(name, addressableValue{va.Elem(), false}, valFncs)
 		},
 		unmarshal: func(us *unmarshalState, va addressableValue) error {
 			if va.IsNil() {
 				va.Set(reflect.New(et))
 			}
-			return us.unmarshalValue(addressableValue{va.Elem(), false})
+			once.Do(init)
+			return us.unmarshalWith(addressableValue{va.Elem(), false}, valFncs)
 		},
 		appendText: func(ms *marshalState, b []byte, va addressableValue) ([]byte, error) {
 			if va.IsNil() {
 				return b, nil
 			}
-			return ms.appendTextValue(b, addressableValue{va.Elem(), false})
+			once.Do(init)
+			return ms.appendTextWith(b, addressableValue{va.Elem(), false}, valFncs)
 		},
 		parseText: func(us *unmarshalState, b []byte, va addressableValue) error {
 			if va.IsNil() {
 				va.Set(reflect.New(et))
 			}
-			return us.parseTextValue(b, addressableValue{va.Elem(), false})
+			once.Do(init)
+			return us.parseTextWith(b, addressableValue{va.Elem(), false}, valFncs)
 		},
 	}
 }
@@ -536,7 +552,7 @@ func (ms *marshalState) marshalStruct(sf *structFields, va addressableValue) err
 			}
 			continue
 		}
-		b, err := ms.appendTextValue(ms.buf[:0], fv)
+		b, err := ms.appendTextWith(ms.buf[:0], fv, f.fncs)
 		ms.buf = b[:0]
 		if err != nil {
 			return newMarshalError(ms, f.name, f.typ, err)
@@ -638,7 +654,7 @@ func (ms *marshalState) marshalStruct(sf *structFields, va addressableValue) err
 				}
 			}
 			open = f.parents
-			if err := ms.marshalValue(f.name, fv); err != nil {
+			if err := ms.marshalWith(f.name, fv, f.fncs); err != nil {
 				return err
 			}
 		}
@@ -720,7 +736,7 @@ func (us *unmarshalState) unmarshalStruct(sf *structFields, va addressableValue)
 			if isAttrType(f.typ) {
 				setAttr(fv.Value, xmltext.Attr{Name: an, Value: string(value)})
 			} else {
-				err = us.parseTextValue(value, fv)
+				err = us.parseTextWith(value, fv, f.fncs)
 			}
 			if err != nil {
 				return newUnmarshalError(us, an, f.typ, err)
@@ -812,7 +828,7 @@ func (us *unmarshalState) unmarshalFields(sf *structFields, va addressableValue,
 			n := us.name()
 			if f := sf.match(n, path); f != nil {
 				fv, _ := fieldValue(va, f.index, true)
-				if err := us.unmarshalValue(fv); err != nil {
+				if err := us.unmarshalWith(fv, f.fncs); err != nil {
 					return err
 				}
 				continue
@@ -826,7 +842,7 @@ func (us *unmarshalState) unmarshalFields(sf *structFields, va addressableValue,
 			if depth == 0 && sf.anyElem >= 0 {
 				f := &sf.list[sf.anyElem]
 				fv, _ := fieldValue(va, f.index, true)
-				if err := us.unmarshalValue(fv); err != nil {
+				if err := us.unmarshalWith(fv, f.fncs); err != nil {
 					return err
 				}
 				continue
