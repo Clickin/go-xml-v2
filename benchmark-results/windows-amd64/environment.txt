@@ -10,3 +10,8 @@ G:\programming\go-xml-v2
 GOMAXPROCS: 8
 corpus: synthetic catalog; books=91678; bytes=16777093
 corpus SHA256: 2DACA51670D9EA14E50F87BB88B5EC80D0F6BA0B384B3542E43AC153ECA913D3
+
+Asset and memory comparison toolchains (2026-11-06):
+Java: OpenJDK Temurin 25.0.1+8 LTS
+Rust: rustc 1.99.0 (b940084d7 2026-09-28)
+Cargo: cargo 1.99.0 (5f94df478 2026-08-27)
