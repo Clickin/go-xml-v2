@@ -102,3 +102,30 @@ func BenchmarkSmallXmltextNewDecoderReader(b *testing.B) {
 		}
 	}
 }
+
+// smallNamesDoc is an order of eight items, about 1.2 KB. Reading its start
+// tag and attribute names makes 58 names, more than a new Decoder made
+// before it allocated a name cache.
+var smallNamesDoc = []byte(`<order id="o-1">` +
+	string(bytes.Repeat([]byte(`<item id="a"><name>Widget</name><price>9.5</price><tags><tag>x</tag><tag>y</tag></tags></item>`), 8)) +
+	`</order>`)
+
+func BenchmarkSmallXmltextNewDecoderNames(b *testing.B) {
+	b.ReportAllocs()
+	b.SetBytes(int64(len(smallNamesDoc)))
+	for b.Loop() {
+		d := xmltext.NewDecoderBytes(smallNamesDoc)
+		for {
+			t, err := d.ReadToken()
+			if err != nil {
+				break
+			}
+			if t.Kind() == xmltext.StartElement {
+				_ = t.RawName()
+				for a := t.Attrs(); a.Next(); {
+					_ = a.RawName()
+				}
+			}
+		}
+	}
+}

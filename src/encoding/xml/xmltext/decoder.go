@@ -203,8 +203,11 @@ type Decoder struct {
 }
 
 // ownNamesAfter is how many names a Decoder makes before it allocates its
-// own string cache, so that a small document does not pay for one.
-const ownNamesAfter = 32
+// own string cache, so that a small document does not pay for one. The
+// 4 KiB cache costs more than a hundred or so short name strings: on
+// linux/arm64 a new Decoder reading a 1–4 KiB document with 40–110 names
+// took 1.5–2.4× as long with the cache made after 32 names as after 128.
+const ownNamesAfter = 128
 
 // NewDecoder returns a Decoder reading from r. A *bytes.Buffer is decoded in
 // place without copying; its contents must not change while decoding.
