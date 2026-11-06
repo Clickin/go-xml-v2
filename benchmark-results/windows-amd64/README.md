@@ -1,0 +1,9 @@
+# Windows amd64 XML benchmark
+
+Measured at commit `bd5149100704087efd1edf06bfb7d6956aa636ac` on an Intel Core i5-13600K. See `environment.txt` for the Go build and environment. Each benchmark uses `-benchtime=1s -count=3 -benchmem`; the CSV contains the median, minimum and maximum of the three measurements. Throughput is omitted where the benchmark does not report it. Parallel benchmark ns/op is aggregate throughput, not single-operation latency.
+
+The corpus is a reproducible synthetic 16,777,093-byte catalog, not the external runtime-comparison corpus. Its generation and SHA-256 are in `run.ps1` and `environment.txt`. The v1-named benchmarks use the v1 compatibility API with `GOEXPERIMENT=xmlv2`, not the original v1 implementation. The v2 and v1 benchmarks do not necessarily use the same input. The xmltext byte and reader cases also exercise different token-consumption work, so their results are not a controlled head-to-head comparison. Three samples do not establish statistical significance; some show substantial variation.
+
+`tests.txt` contains the completed correctness tests. The first benchmark run was interrupted during xmltext: `bench.txt` contains completed results for the other packages and an incomplete xmltext section; `xmltext.txt` contains the complete independent rerun under the same settings. `summarize.ps1` combines these without counting the incomplete section. `summary.csv` contains all 69 cases and 207 samples.
+
+To reproduce, build this source tree's Go toolchain on Windows, then run `./benchmark-results/windows-amd64/run.ps1` and `./benchmark-results/windows-amd64/summarize.ps1` from the repository root. These scripts overwrite the generated result files and use `pkg/` for caches and the synthetic corpus. A complete fresh `bench.txt` takes precedence over `xmltext.txt` when summarizing.

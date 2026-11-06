@@ -1,0 +1,12 @@
+commit: bd5149100704087efd1edf06bfb7d6956aa636ac
+date: 2026-11-06T21:16:23.5703366+09:00
+go version go1.28-devel_bd514910 Fri Nov 6 14:47:30 2026 +0900 windows/amd64
+windows
+amd64
+v1
+xmlv2
+0
+G:\programming\go-xml-v2
+GOMAXPROCS: 8
+corpus: synthetic catalog; books=91678; bytes=16777093
+corpus SHA256: 2DACA51670D9EA14E50F87BB88B5EC80D0F6BA0B384B3542E43AC153ECA913D3

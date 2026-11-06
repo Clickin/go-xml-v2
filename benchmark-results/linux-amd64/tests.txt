@@ -1,0 +1,6 @@
+ok  	encoding/xml	2.417s
+?   	encoding/xml/internal/xmllegacy	[no test files]
+ok  	encoding/xml/internal/xmlname	0.433s
+?   	encoding/xml/internal/xmlopts	[no test files]
+ok  	encoding/xml/v2	0.005s
+ok  	encoding/xml/xmltext	8.646s

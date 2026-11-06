@@ -1,0 +1,105 @@
+goos: windows
+goarch: amd64
+pkg: encoding/xml
+cpu: 13th Gen Intel(R) Core(TM) i5-13600K
+BenchmarkUnmarshalAttrs-8                 	   13024	     92389 ns/op	  83.85 MB/s	   20033 B/op	     464 allocs/op
+BenchmarkUnmarshalAttrs-8                 	   12909	     93017 ns/op	  83.29 MB/s	   20031 B/op	     464 allocs/op
+BenchmarkUnmarshalAttrs-8                 	   12787	     93612 ns/op	  82.76 MB/s	   20034 B/op	     464 allocs/op
+BenchmarkTokenAttrs-8                     	   10000	    108202 ns/op	  71.60 MB/s	   65299 B/op	    1215 allocs/op
+BenchmarkTokenAttrs-8                     	   12808	     93501 ns/op	  82.85 MB/s	   65299 B/op	    1215 allocs/op
+BenchmarkTokenAttrs-8                     	   13434	     92944 ns/op	  83.35 MB/s	   65299 B/op	    1215 allocs/op
+BenchmarkMarshal-8                        	 2073888	       585.1 ns/op	     576 B/op	       1 allocs/op
+BenchmarkMarshal-8                        	 2142516	       574.1 ns/op	     576 B/op	       1 allocs/op
+BenchmarkMarshal-8                        	 2159227	       562.6 ns/op	     576 B/op	       1 allocs/op
+BenchmarkUnmarshal-8                      	  871072	      1459 ns/op	    1254 B/op	      30 allocs/op
+BenchmarkUnmarshal-8                      	  776131	      1439 ns/op	    1254 B/op	      30 allocs/op
+BenchmarkUnmarshal-8                      	  798498	      1384 ns/op	    1254 B/op	      30 allocs/op
+BenchmarkUnmarshalV1OnXMLText-8           	       7	 152104443 ns/op	 110.30 MB/s	75129868 B/op	 1191869 allocs/op
+BenchmarkUnmarshalV1OnXMLText-8           	       7	 151812657 ns/op	 110.51 MB/s	75128995 B/op	 1191858 allocs/op
+BenchmarkUnmarshalV1OnXMLText-8           	       7	 150721143 ns/op	 111.31 MB/s	75129034 B/op	 1191859 allocs/op
+BenchmarkTokenV1OnXMLText-8               	      10	 105856020 ns/op	 158.49 MB/s	71037014 B/op	 1650266 allocs/op
+BenchmarkTokenV1OnXMLText-8               	      10	 107899510 ns/op	 155.49 MB/s	71037022 B/op	 1650266 allocs/op
+BenchmarkTokenV1OnXMLText-8               	      10	 106251790 ns/op	 157.90 MB/s	71037012 B/op	 1650266 allocs/op
+BenchmarkMarshalV1OnXMLText-8             	      18	  64215928 ns/op	 261.26 MB/s	41937756 B/op	      15 allocs/op
+BenchmarkMarshalV1OnXMLText-8             	      18	  64481022 ns/op	 260.19 MB/s	41937756 B/op	      15 allocs/op
+BenchmarkMarshalV1OnXMLText-8             	      16	  64832431 ns/op	 258.78 MB/s	41937756 B/op	      15 allocs/op
+BenchmarkTokenV1BytesBufferHTMLEntity/v1/bytes.Buffer-8         	     210	   5617757 ns/op	 131.73 MB/s	 3400819 B/op	   80049 allocs/op
+BenchmarkTokenV1BytesBufferHTMLEntity/v1/bytes.Buffer-8         	     206	   5697239 ns/op	 129.89 MB/s	 3400811 B/op	   80049 allocs/op
+BenchmarkTokenV1BytesBufferHTMLEntity/v1/bytes.Buffer-8         	     200	   5733530 ns/op	 129.07 MB/s	 3400783 B/op	   80049 allocs/op
+BenchmarkTokenV1BytesBufferHTMLEntity/v1/ByteReader-8           	      44	  26976909 ns/op	  27.43 MB/s	 4117938 B/op	   80051 allocs/op
+BenchmarkTokenV1BytesBufferHTMLEntity/v1/ByteReader-8           	      44	  27136080 ns/op	  27.27 MB/s	 4117966 B/op	   80051 allocs/op
+BenchmarkTokenV1BytesBufferHTMLEntity/v1/ByteReader-8           	      43	  27335760 ns/op	  27.07 MB/s	 4117961 B/op	   80051 allocs/op
+BenchmarkTokenV1BytesBufferHTMLEntity/v1/bufio(16)-8            	     100	  10251444 ns/op	  72.19 MB/s	 3372255 B/op	   80051 allocs/op
+BenchmarkTokenV1BytesBufferHTMLEntity/v1/bufio(16)-8            	     100	  10297252 ns/op	  71.86 MB/s	 3372245 B/op	   80051 allocs/op
+BenchmarkTokenV1BytesBufferHTMLEntity/v1/bufio(16)-8            	     100	  10341873 ns/op	  71.55 MB/s	 3372262 B/op	   80051 allocs/op
+BenchmarkTokenV1BytesBufferHTMLEntity/v1/bufio(4096)-8          	     202	   5951654 ns/op	 124.34 MB/s	 3409084 B/op	   80052 allocs/op
+BenchmarkTokenV1BytesBufferHTMLEntity/v1/bufio(4096)-8          	     198	   6148327 ns/op	 120.36 MB/s	 3409081 B/op	   80052 allocs/op
+BenchmarkTokenV1BytesBufferHTMLEntity/v1/bufio(4096)-8          	     200	   5800174 ns/op	 127.58 MB/s	 3409092 B/op	   80052 allocs/op
+BenchmarkMemReaderFirstToken/bytes.Reader/1MiB-8                	  143379	     10261 ns/op	   35256 B/op	      11 allocs/op
+BenchmarkMemReaderFirstToken/bytes.Reader/1MiB-8                	  158398	      7302 ns/op	   35256 B/op	      11 allocs/op
+BenchmarkMemReaderFirstToken/bytes.Reader/1MiB-8                	  216404	      8641 ns/op	   35256 B/op	      11 allocs/op
+BenchmarkMemReaderFirstToken/strings.Reader/1MiB-8              	  131496	      9066 ns/op	   35242 B/op	      11 allocs/op
+BenchmarkMemReaderFirstToken/strings.Reader/1MiB-8              	  121110	      8286 ns/op	   35242 B/op	      11 allocs/op
+BenchmarkMemReaderFirstToken/strings.Reader/1MiB-8              	  191022	      8894 ns/op	   35242 B/op	      11 allocs/op
+BenchmarkMemReaderFirstToken/bytes.Reader/16MiB-8               	  310530	      3758 ns/op	   35249 B/op	      11 allocs/op
+BenchmarkMemReaderFirstToken/bytes.Reader/16MiB-8               	  300304	      4031 ns/op	   35249 B/op	      11 allocs/op
+BenchmarkMemReaderFirstToken/bytes.Reader/16MiB-8               	  310959	      3907 ns/op	   35249 B/op	      11 allocs/op
+BenchmarkMemReaderFirstToken/strings.Reader/16MiB-8             	  352150	      4031 ns/op	   35234 B/op	      11 allocs/op
+BenchmarkMemReaderFirstToken/strings.Reader/16MiB-8             	  344287	      3960 ns/op	   35234 B/op	      11 allocs/op
+BenchmarkMemReaderFirstToken/strings.Reader/16MiB-8             	  276217	      3686 ns/op	   35234 B/op	      11 allocs/op
+BenchmarkSmallUnmarshalV1-8                                     	  357835	      3322 ns/op	     593 B/op	      21 allocs/op
+BenchmarkSmallUnmarshalV1-8                                     	  366049	      3317 ns/op	     593 B/op	      21 allocs/op
+BenchmarkSmallUnmarshalV1-8                                     	  362652	      3322 ns/op	     593 B/op	      21 allocs/op
+BenchmarkSmallUnmarshalParallelV1-8                             	 1512894	       761.8 ns/op	     594 B/op	      21 allocs/op
+BenchmarkSmallUnmarshalParallelV1-8                             	 1585184	       751.8 ns/op	     594 B/op	      21 allocs/op
+BenchmarkSmallUnmarshalParallelV1-8                             	 1620194	       748.9 ns/op	     594 B/op	      21 allocs/op
+BenchmarkSmallDecodeReaderV1-8                                  	  286724	      4448 ns/op	    3582 B/op	      35 allocs/op
+BenchmarkSmallDecodeReaderV1-8                                  	  286299	      4623 ns/op	    3582 B/op	      35 allocs/op
+BenchmarkSmallDecodeReaderV1-8                                  	  278283	      4649 ns/op	    3582 B/op	      35 allocs/op
+BenchmarkSmallMarshalV1-8                                       	  913888	      1339 ns/op	     208 B/op	       1 allocs/op
+BenchmarkSmallMarshalV1-8                                       	  925004	      1338 ns/op	     208 B/op	       1 allocs/op
+BenchmarkSmallMarshalV1-8                                       	  957212	      1325 ns/op	     208 B/op	       1 allocs/op
+BenchmarkSmallXmltextNewDecoderBytes-8                          	 1380070	       857.8 ns/op	     680 B/op	       7 allocs/op
+BenchmarkSmallXmltextNewDecoderBytes-8                          	 1428730	       840.4 ns/op	     680 B/op	       7 allocs/op
+BenchmarkSmallXmltextNewDecoderBytes-8                          	 1372352	       872.4 ns/op	     680 B/op	       7 allocs/op
+BenchmarkSmallXmltextNewDecoderReader-8                         	 1000000	      1144 ns/op	     936 B/op	       9 allocs/op
+BenchmarkSmallXmltextNewDecoderReader-8                         	 1000000	      1053 ns/op	     936 B/op	       9 allocs/op
+BenchmarkSmallXmltextNewDecoderReader-8                         	 1000000	      1113 ns/op	     936 B/op	       9 allocs/op
+BenchmarkHTMLAutoClose-8                                        	 1000000	      1183 ns/op	    3627 B/op	      79 allocs/op
+BenchmarkHTMLAutoClose-8                                        	  981594	      1172 ns/op	    3627 B/op	      79 allocs/op
+BenchmarkHTMLAutoClose-8                                        	 1000000	      1176 ns/op	    3627 B/op	      79 allocs/op
+PASS
+ok  	encoding/xml	89.811s
+?   	encoding/xml/internal/xmllegacy	[no test files]
+goos: windows
+goarch: amd64
+pkg: encoding/xml/internal/xmlname
+cpu: 13th Gen Intel(R) Core(TM) i5-13600K
+BenchmarkValidASCII-8   	133978408	         8.959 ns/op	       0 B/op	       0 allocs/op
+BenchmarkValidASCII-8   	131979966	         9.042 ns/op	       0 B/op	       0 allocs/op
+BenchmarkValidASCII-8   	134243968	         8.937 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	encoding/xml/internal/xmlname	3.855s
+?   	encoding/xml/internal/xmlopts	[no test files]
+goos: windows
+goarch: amd64
+pkg: encoding/xml/v2
+cpu: 13th Gen Intel(R) Core(TM) i5-13600K
+BenchmarkMarshal-8     	  165205	      7264 ns/op	    2689 B/op	       1 allocs/op
+BenchmarkMarshal-8     	  167446	      7248 ns/op	    2688 B/op	       1 allocs/op
+BenchmarkMarshal-8     	  167414	      7396 ns/op	    2689 B/op	       1 allocs/op
+BenchmarkUnmarshal-8   	   88705	     13815 ns/op	 168.37 MB/s	    5228 B/op	      62 allocs/op
+BenchmarkUnmarshal-8   	   87727	     13579 ns/op	 171.30 MB/s	    5227 B/op	      62 allocs/op
+BenchmarkUnmarshal-8   	   88184	     13707 ns/op	 169.70 MB/s	    5227 B/op	      62 allocs/op
+PASS
+ok  	encoding/xml/v2	7.474s
+goos: windows
+goarch: amd64
+pkg: encoding/xml/xmltext
+cpu: 13th Gen Intel(R) Core(TM) i5-13600K
+BenchmarkReadToken/KoreanTags/xmltext-bytes-8         	     249	   4765309 ns/op	 285.40 MB/s	      33 B/op	       0 allocs/op
+BenchmarkReadToken/KoreanTags/xmltext-bytes-8         	     250	   4776562 ns/op	 284.73 MB/s	      33 B/op	       0 allocs/op
+BenchmarkReadToken/KoreanTags/xmltext-bytes-8         	     250	   4799360 ns/op	 283.37 MB/s	      30 B/op	       0 allocs/op
+BenchmarkReadToken/KoreanTags/xmltext-reader-8        	     288	   4166432 ns/op	 326.42 MB/s	      54 B/op	       1 allocs/op
+BenchmarkReadToken/KoreanTags/xmltext-reader-8        	     300	   4012248 ns/op	 338.96 MB/s	      54 B/op	       1 allocs/op
+BenchmarkReadToken/KoreanTags/xmltext-reader-8        	     290	   4054665 ns/op	 335.42 MB/s	      54 B/op	       1 allocs/op

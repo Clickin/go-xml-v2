@@ -1,0 +1,138 @@
+goos: windows
+goarch: amd64
+pkg: encoding/xml/xmltext
+cpu: 13th Gen Intel(R) Core(TM) i5-13600K
+BenchmarkReadToken/TagHeavy/xmltext-bytes-8         	     314	   3812413 ns/op	 299.03 MB/s	      24 B/op	       0 allocs/op
+BenchmarkReadToken/TagHeavy/xmltext-bytes-8         	     314	   3820791 ns/op	 298.37 MB/s	      24 B/op	       0 allocs/op
+BenchmarkReadToken/TagHeavy/xmltext-bytes-8         	     307	   5559548 ns/op	 205.05 MB/s	      27 B/op	       0 allocs/op
+BenchmarkReadToken/TagHeavy/xmltext-reader-8        	     229	   5282184 ns/op	 215.82 MB/s	      56 B/op	       1 allocs/op
+BenchmarkReadToken/TagHeavy/xmltext-reader-8        	     218	   5429979 ns/op	 209.95 MB/s	      57 B/op	       1 allocs/op
+BenchmarkReadToken/TagHeavy/xmltext-reader-8        	     217	   5483841 ns/op	 207.88 MB/s	      60 B/op	       1 allocs/op
+BenchmarkReadToken/EntityHeavy/xmltext-bytes-8      	     282	   4241045 ns/op	 235.79 MB/s	      25 B/op	       0 allocs/op
+BenchmarkReadToken/EntityHeavy/xmltext-bytes-8      	     289	   4132646 ns/op	 241.98 MB/s	      21 B/op	       0 allocs/op
+BenchmarkReadToken/EntityHeavy/xmltext-bytes-8      	     292	   4072540 ns/op	 245.55 MB/s	      26 B/op	       0 allocs/op
+BenchmarkReadToken/EntityHeavy/xmltext-reader-8     	     338	   3627966 ns/op	 275.64 MB/s	      54 B/op	       1 allocs/op
+BenchmarkReadToken/EntityHeavy/xmltext-reader-8     	     327	   3704189 ns/op	 269.97 MB/s	      54 B/op	       1 allocs/op
+BenchmarkReadToken/EntityHeavy/xmltext-reader-8     	     321	   3748015 ns/op	 266.81 MB/s	      52 B/op	       1 allocs/op
+BenchmarkReadToken/ASCII/xmltext-bytes-8            	    2672	    454226 ns/op	2476.76 MB/s	       0 B/op	       0 allocs/op
+BenchmarkReadToken/ASCII/xmltext-bytes-8            	    2552	    489030 ns/op	2300.49 MB/s	       0 B/op	       0 allocs/op
+BenchmarkReadToken/ASCII/xmltext-bytes-8            	    5755	    208198 ns/op	5403.55 MB/s	       0 B/op	       0 allocs/op
+BenchmarkReadToken/ASCII/xmltext-reader-8           	    4590	    236334 ns/op	4760.25 MB/s	     694 B/op	       1 allocs/op
+BenchmarkReadToken/ASCII/xmltext-reader-8           	    5106	    236181 ns/op	4763.33 MB/s	     629 B/op	       1 allocs/op
+BenchmarkReadToken/ASCII/xmltext-reader-8           	    5179	    238589 ns/op	4715.25 MB/s	     620 B/op	       1 allocs/op
+BenchmarkReadToken/Korean/xmltext-bytes-8           	     936	   1250831 ns/op	2062.63 MB/s	       2 B/op	       0 allocs/op
+BenchmarkReadToken/Korean/xmltext-bytes-8           	     926	   1268723 ns/op	2033.55 MB/s	       2 B/op	       0 allocs/op
+BenchmarkReadToken/Korean/xmltext-bytes-8           	     964	   1251049 ns/op	2062.27 MB/s	       2 B/op	       0 allocs/op
+BenchmarkReadToken/Korean/xmltext-reader-8          	     861	   1406921 ns/op	1833.80 MB/s	    7576 B/op	       1 allocs/op
+BenchmarkReadToken/Korean/xmltext-reader-8          	     854	   1428796 ns/op	1805.72 MB/s	    7638 B/op	       1 allocs/op
+BenchmarkReadToken/Korean/xmltext-reader-8          	     846	   1402294 ns/op	1839.85 MB/s	    7709 B/op	       1 allocs/op
+BenchmarkReadToken/KoreanTags/xmltext-bytes-8       	     246	   4873241 ns/op	 279.08 MB/s	      31 B/op	       0 allocs/op
+BenchmarkReadToken/KoreanTags/xmltext-bytes-8       	     246	   4841939 ns/op	 280.88 MB/s	      31 B/op	       0 allocs/op
+BenchmarkReadToken/KoreanTags/xmltext-bytes-8       	     246	   4846279 ns/op	 280.63 MB/s	      28 B/op	       0 allocs/op
+BenchmarkReadToken/KoreanTags/xmltext-reader-8      	     297	   4030573 ns/op	 337.42 MB/s	      56 B/op	       1 allocs/op
+BenchmarkReadToken/KoreanTags/xmltext-reader-8      	     292	   4088408 ns/op	 332.65 MB/s	      56 B/op	       1 allocs/op
+BenchmarkReadToken/KoreanTags/xmltext-reader-8      	     177	   7177688 ns/op	 189.48 MB/s	      62 B/op	       1 allocs/op
+BenchmarkReadToken/AttrRefs/xmltext-bytes-8         	     219	   5425159 ns/op	 210.13 MB/s	      32 B/op	       0 allocs/op
+BenchmarkReadToken/AttrRefs/xmltext-bytes-8         	     219	   5442290 ns/op	 209.47 MB/s	      32 B/op	       0 allocs/op
+BenchmarkReadToken/AttrRefs/xmltext-bytes-8         	     220	   5415300 ns/op	 210.52 MB/s	      32 B/op	       0 allocs/op
+BenchmarkReadToken/AttrRefs/xmltext-reader-8        	     240	   5000714 ns/op	 227.97 MB/s	      57 B/op	       1 allocs/op
+BenchmarkReadToken/AttrRefs/xmltext-reader-8        	     226	   5096078 ns/op	 223.70 MB/s	      58 B/op	       1 allocs/op
+BenchmarkReadToken/AttrRefs/xmltext-reader-8        	     246	   4838395 ns/op	 235.62 MB/s	      57 B/op	       1 allocs/op
+BenchmarkAttrNames-8                                	     174	   6881590 ns/op	 165.66 MB/s	      49 B/op	       0 allocs/op
+BenchmarkAttrNames-8                                	     175	   6814702 ns/op	 167.29 MB/s	      48 B/op	       0 allocs/op
+BenchmarkAttrNames-8                                	     170	   6987713 ns/op	 163.14 MB/s	      45 B/op	       0 allocs/op
+BenchmarkConsumer-8                                 	      16	  69393275 ns/op	     597 B/op	       3 allocs/op
+BenchmarkConsumer-8                                 	      15	  69184280 ns/op	     534 B/op	       3 allocs/op
+BenchmarkConsumer-8                                 	      16	  68065800 ns/op	     501 B/op	       3 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=1000/qualified=false-8         	     445	   2430792 ns/op	  11.80 MB/s	 1932757 B/op	    8193 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=1000/qualified=false-8         	     526	   2312910 ns/op	  12.40 MB/s	 1932742 B/op	    8193 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=1000/qualified=false-8         	     531	   2486702 ns/op	  11.53 MB/s	 1932742 B/op	    8193 allocs/op
+BenchmarkEncoderNamespaces/generated/N=1000/qualified=false-8        	    1358	    811564 ns/op	  661837 B/op	    6771 allocs/op
+BenchmarkEncoderNamespaces/generated/N=1000/qualified=false-8        	    1383	    839371 ns/op	  661837 B/op	    6771 allocs/op
+BenchmarkEncoderNamespaces/generated/N=1000/qualified=false-8        	    1471	    945010 ns/op	  661836 B/op	    6771 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=1000/qualified=true-8          	     556	   2019428 ns/op	  14.21 MB/s	 1908346 B/op	    8172 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=1000/qualified=true-8          	     540	   1933500 ns/op	  14.84 MB/s	 1908339 B/op	    8172 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=1000/qualified=true-8          	     547	   2131640 ns/op	  13.46 MB/s	 1908332 B/op	    8172 allocs/op
+BenchmarkEncoderNamespaces/generated/N=1000/qualified=true-8         	    1450	    805950 ns/op	  687777 B/op	    5780 allocs/op
+BenchmarkEncoderNamespaces/generated/N=1000/qualified=true-8         	    1490	    766197 ns/op	  687778 B/op	    5780 allocs/op
+BenchmarkEncoderNamespaces/generated/N=1000/qualified=true-8         	    1578	    717546 ns/op	  687777 B/op	    5780 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=10000/qualified=false-8        	      51	  20351029 ns/op	  15.56 MB/s	23290834 B/op	   80778 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=10000/qualified=false-8        	      60	  22129580 ns/op	  14.31 MB/s	23290856 B/op	   80778 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=10000/qualified=false-8        	      62	  20328097 ns/op	  15.58 MB/s	23290860 B/op	   80778 allocs/op
+BenchmarkEncoderNamespaces/generated/N=10000/qualified=false-8       	     139	   8455294 ns/op	 8036370 B/op	   69972 allocs/op
+BenchmarkEncoderNamespaces/generated/N=10000/qualified=false-8       	     142	   8126458 ns/op	 8036371 B/op	   69972 allocs/op
+BenchmarkEncoderNamespaces/generated/N=10000/qualified=false-8       	     140	   8354239 ns/op	 8036367 B/op	   69972 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=10000/qualified=true-8         	      55	  18978778 ns/op	  16.69 MB/s	24439507 B/op	   80641 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=10000/qualified=true-8         	      63	  18032997 ns/op	  17.56 MB/s	24439523 B/op	   80641 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=10000/qualified=true-8         	      58	  20073428 ns/op	  15.78 MB/s	24439517 B/op	   80641 allocs/op
+BenchmarkEncoderNamespaces/generated/N=10000/qualified=true-8        	     157	   8499098 ns/op	 9105842 B/op	   59960 allocs/op
+BenchmarkEncoderNamespaces/generated/N=10000/qualified=true-8        	     144	   8327815 ns/op	 9105842 B/op	   59960 allocs/op
+BenchmarkEncoderNamespaces/generated/N=10000/qualified=true-8        	     141	   8263765 ns/op	 9105842 B/op	   59960 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=40000/qualified=false-8        	       9	 115524211 ns/op	  11.83 MB/s	100197031 B/op	  322559 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=40000/qualified=false-8        	       9	 121189611 ns/op	  11.28 MB/s	100197036 B/op	  322559 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=40000/qualified=false-8        	       9	 121226544 ns/op	  11.27 MB/s	100197016 B/op	  322559 allocs/op
+BenchmarkEncoderNamespaces/generated/N=40000/qualified=false-8       	      27	  42623107 ns/op	36537952 B/op	  280573 allocs/op
+BenchmarkEncoderNamespaces/generated/N=40000/qualified=false-8       	      30	  43167027 ns/op	36537928 B/op	  280573 allocs/op
+BenchmarkEncoderNamespaces/generated/N=40000/qualified=false-8       	      31	  43036535 ns/op	36537915 B/op	  280573 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=40000/qualified=true-8         	      12	  86332433 ns/op	  15.83 MB/s	104872810 B/op	  322033 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=40000/qualified=true-8         	      14	  83972357 ns/op	  16.28 MB/s	104872783 B/op	  322033 allocs/op
+BenchmarkEncoderNamespaces/reencode/N=40000/qualified=true-8         	      16	  85613425 ns/op	  15.96 MB/s	104872857 B/op	  322033 allocs/op
+BenchmarkEncoderNamespaces/generated/N=40000/qualified=true-8        	      33	  38320721 ns/op	42242102 B/op	  240469 allocs/op
+BenchmarkEncoderNamespaces/generated/N=40000/qualified=true-8        	      30	  38593147 ns/op	42242105 B/op	  240469 allocs/op
+BenchmarkEncoderNamespaces/generated/N=40000/qualified=true-8        	      34	  38900488 ns/op	42242107 B/op	  240469 allocs/op
+BenchmarkEncoderShadowedURI/k=2500/visible=false-8                   	     378	   3179207 ns/op	 2211953 B/op	   17331 allocs/op
+BenchmarkEncoderShadowedURI/k=2500/visible=false-8                   	     398	   3109803 ns/op	 2211953 B/op	   17331 allocs/op
+BenchmarkEncoderShadowedURI/k=2500/visible=false-8                   	     394	   3118533 ns/op	 2211956 B/op	   17331 allocs/op
+BenchmarkEncoderShadowedURI/k=2500/visible=true-8                    	     444	   2717912 ns/op	 2211923 B/op	   17331 allocs/op
+BenchmarkEncoderShadowedURI/k=2500/visible=true-8                    	     440	   2719131 ns/op	 2211925 B/op	   17331 allocs/op
+BenchmarkEncoderShadowedURI/k=2500/visible=true-8                    	     454	   2675142 ns/op	 2211923 B/op	   17331 allocs/op
+BenchmarkEncoderShadowedURI/k=2500/reencode-8                        	     235	   4994696 ns/op	  23.36 MB/s	 4096380 B/op	   20191 allocs/op
+BenchmarkEncoderShadowedURI/k=2500/reencode-8                        	     226	   5134500 ns/op	  22.73 MB/s	 4096457 B/op	   20191 allocs/op
+BenchmarkEncoderShadowedURI/k=2500/reencode-8                        	     249	   5002620 ns/op	  23.33 MB/s	 4096388 B/op	   20191 allocs/op
+BenchmarkEncoderShadowedURI/k=5000/visible=false-8                   	     192	   6483214 ns/op	 4846822 B/op	   34889 allocs/op
+BenchmarkEncoderShadowedURI/k=5000/visible=false-8                   	     175	   6274902 ns/op	 4846820 B/op	   34889 allocs/op
+BenchmarkEncoderShadowedURI/k=5000/visible=false-8                   	     184	   6428932 ns/op	 4846825 B/op	   34889 allocs/op
+BenchmarkEncoderShadowedURI/k=5000/visible=true-8                    	     208	   5654388 ns/op	 4846792 B/op	   34889 allocs/op
+BenchmarkEncoderShadowedURI/k=5000/visible=true-8                    	     212	   5627876 ns/op	 4846794 B/op	   34889 allocs/op
+BenchmarkEncoderShadowedURI/k=5000/visible=true-8                    	     207	   5709830 ns/op	 4846793 B/op	   34889 allocs/op
+BenchmarkEncoderShadowedURI/k=5000/reencode-8                        	     100	  10253059 ns/op	  23.09 MB/s	 8999342 B/op	   40294 allocs/op
+BenchmarkEncoderShadowedURI/k=5000/reencode-8                        	     121	  10068040 ns/op	  23.51 MB/s	 8999328 B/op	   40294 allocs/op
+BenchmarkEncoderShadowedURI/k=5000/reencode-8                        	     100	  10282577 ns/op	  23.02 MB/s	 8999354 B/op	   40294 allocs/op
+BenchmarkEncoderShadowedURI/k=10000/visible=false-8                  	      96	  13236077 ns/op	10640839 B/op	   69997 allocs/op
+BenchmarkEncoderShadowedURI/k=10000/visible=false-8                  	      92	  13264026 ns/op	10640840 B/op	   69997 allocs/op
+BenchmarkEncoderShadowedURI/k=10000/visible=false-8                  	      91	  13440649 ns/op	10640836 B/op	   69997 allocs/op
+BenchmarkEncoderShadowedURI/k=10000/visible=true-8                   	     100	  11632782 ns/op	10640800 B/op	   69997 allocs/op
+BenchmarkEncoderShadowedURI/k=10000/visible=true-8                   	     100	  12074216 ns/op	10640800 B/op	   69997 allocs/op
+BenchmarkEncoderShadowedURI/k=10000/visible=true-8                   	     100	  11862088 ns/op	10640803 B/op	   69997 allocs/op
+BenchmarkEncoderShadowedURI/k=10000/reencode-8                       	      60	  22343922 ns/op	  21.33 MB/s	19771491 B/op	   80486 allocs/op
+BenchmarkEncoderShadowedURI/k=10000/reencode-8                       	      57	  21158353 ns/op	  22.53 MB/s	19771505 B/op	   80486 allocs/op
+BenchmarkEncoderShadowedURI/k=10000/reencode-8                       	      54	  20787641 ns/op	  22.93 MB/s	19771555 B/op	   80486 allocs/op
+BenchmarkEncoderShadowedURI/k=20000/visible=false-8                  	      37	  27221597 ns/op	22372286 B/op	  140201 allocs/op
+BenchmarkEncoderShadowedURI/k=20000/visible=false-8                  	      46	  27285052 ns/op	22372278 B/op	  140201 allocs/op
+BenchmarkEncoderShadowedURI/k=20000/visible=false-8                  	      39	  27430069 ns/op	22372288 B/op	  140201 allocs/op
+BenchmarkEncoderShadowedURI/k=20000/visible=true-8                   	      49	  25395010 ns/op	22372262 B/op	  140201 allocs/op
+BenchmarkEncoderShadowedURI/k=20000/visible=true-8                   	      43	  24263453 ns/op	22372257 B/op	  140201 allocs/op
+BenchmarkEncoderShadowedURI/k=20000/visible=true-8                   	      43	  24846816 ns/op	22372245 B/op	  140201 allocs/op
+BenchmarkEncoderShadowedURI/k=20000/reencode-8                       	      28	  43080939 ns/op	  22.90 MB/s	41795295 B/op	  160841 allocs/op
+BenchmarkEncoderShadowedURI/k=20000/reencode-8                       	      27	  42221470 ns/op	  23.37 MB/s	41795278 B/op	  160841 allocs/op
+BenchmarkEncoderShadowedURI/k=20000/reencode-8                       	      27	  42983096 ns/op	  22.96 MB/s	41795308 B/op	  160841 allocs/op
+BenchmarkEncoderCommon/namespaced-8                                  	    3696	    318702 ns/op	   19144 B/op	      29 allocs/op
+BenchmarkEncoderCommon/namespaced-8                                  	    3682	    333504 ns/op	   19144 B/op	      29 allocs/op
+BenchmarkEncoderCommon/namespaced-8                                  	    3748	    328026 ns/op	   19144 B/op	      29 allocs/op
+BenchmarkEncoderCommon/plain-8                                       	   16456	     74147 ns/op	   18072 B/op	      16 allocs/op
+BenchmarkEncoderCommon/plain-8                                       	   16407	     72892 ns/op	   18072 B/op	      16 allocs/op
+BenchmarkEncoderCommon/plain-8                                       	   16484	     74592 ns/op	   18072 B/op	      16 allocs/op
+BenchmarkInputPosEveryToken/927KB-8                                  	     244	   5156425 ns/op	 184.24 MB/s	     404 B/op	       6 allocs/op
+BenchmarkInputPosEveryToken/927KB-8                                  	     261	   4889531 ns/op	 194.29 MB/s	     407 B/op	       6 allocs/op
+BenchmarkInputPosEveryToken/927KB-8                                  	     243	   4831443 ns/op	 196.63 MB/s	     407 B/op	       6 allocs/op
+BenchmarkInputPosEveryToken/3710KB-8                                 	      61	  19506556 ns/op	 194.81 MB/s	     456 B/op	       6 allocs/op
+BenchmarkInputPosEveryToken/3710KB-8                                 	      62	  19259403 ns/op	 197.31 MB/s	     431 B/op	       6 allocs/op
+BenchmarkInputPosEveryToken/3710KB-8                                 	      61	  19191297 ns/op	 198.01 MB/s	     431 B/op	       6 allocs/op
+BenchmarkInputPosEveryToken/14843KB-8                                	      14	  78143571 ns/op	 194.51 MB/s	     537 B/op	       6 allocs/op
+BenchmarkInputPosEveryToken/14843KB-8                                	      14	  78000486 ns/op	 194.87 MB/s	     593 B/op	       6 allocs/op
+BenchmarkInputPosEveryToken/14843KB-8                                	      15	  79885107 ns/op	 190.27 MB/s	     477 B/op	       6 allocs/op
+BenchmarkCorpus-8                                                    	      22	  48955555 ns/op	 342.70 MB/s	     165 B/op	       0 allocs/op
+BenchmarkCorpus-8                                                    	      24	  50936671 ns/op	 329.37 MB/s	     151 B/op	       0 allocs/op
+BenchmarkCorpus-8                                                    	      22	  50230736 ns/op	 334.00 MB/s	     130 B/op	       0 allocs/op
+PASS
+ok  	encoding/xml/xmltext	182.640s

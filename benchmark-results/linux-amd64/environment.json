@@ -1,0 +1,15 @@
+{
+  "kernel": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+  "machine": "x86_64",
+  "cpu": "13th Gen Intel(R) Core(TM) i5-13600K",
+  "go": "go version go1.28-devel_bd514910 Fri Nov 6 14:47:30 2026 +0900 linux/amd64",
+  "rust": "rustc 1.91.1 (ed61e7d7e 2025-11-07)",
+  "java": "openjdk version \"25.0.5\" 2026-10-20 LTS\nOpenJDK Runtime Environment Temurin-25.0.5+8 (build 25.0.5+8-LTS)\nOpenJDK 64-Bit Server VM Temurin-25.0.5+8 (build 25.0.5+8-LTS, mixed mode, sharing)",
+  "go_source_revision": "bd5149100704087efd1edf06bfb7d6956aa636ac",
+  "goexperiment": "xmlv2",
+  "goamd64": "v1",
+  "gomaxprocs": 8,
+  "woodstox": "7.2.0",
+  "quick_xml": "0.42.0",
+  "filesystem": "WSL ext4 /tmp, warm page cache"
+}
