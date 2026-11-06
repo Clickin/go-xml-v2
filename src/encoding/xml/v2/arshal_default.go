@@ -282,13 +282,9 @@ func makeSliceArshaler(t reflect.Type) *arshaler {
 		},
 		unmarshal: func(us *unmarshalState, va addressableValue) error {
 			n := va.Len()
-			if n < va.Cap() {
-				va.SetLen(n + 1)
-				ev := va.Index(n)
-				ev.SetZero()
-			} else {
-				va.Set(reflect.Append(va.Value, reflect.Zero(et)))
-			}
+			va.Grow(1)
+			va.SetLen(n + 1)
+			va.Index(n).SetZero() // reused or grown capacity need not be zero
 			once.Do(init)
 			return us.unmarshalWith(addressableValue{va.Index(n), false}, valFncs)
 		},
