@@ -14,17 +14,19 @@ import (
 const simdKernels = true
 
 // plainPrefix returns the length of the leading run of bytes of b that need
-// no attention from the text scanner: ASCII 0x20..0x7f other than '&' and
-// ']'. NEON version: 16 bytes per step, exact stop position.
+// no attention from the text scanner: ASCII 0x20..0x7f other than '&', ']'
+// and '<' (which ends a text run; see textRun). NEON version: 16 bytes per
+// step, exact stop position.
 func plainPrefix(b []byte) int {
 	lo := archsimd.BroadcastUint8x16(0x20)
 	hi := archsimd.BroadcastUint8x16(0x7f)
 	amp := archsimd.BroadcastUint8x16('&')
 	rb := archsimd.BroadcastUint8x16(']')
+	lt := archsimd.BroadcastUint8x16('<')
 	i := 0
 	for ; i+16 <= len(b); i += 16 {
 		x := archsimd.LoadUint8x16(b[i:])
-		bad := x.Less(lo).Or(x.Greater(hi)).Or(x.Equal(amp)).Or(x.Equal(rb))
+		bad := x.Less(lo).Or(x.Greater(hi)).Or(x.Equal(amp)).Or(x.Equal(rb)).Or(x.Equal(lt))
 		w := bad.ToInt8x16().ConvertToUint8().ReshapeToUint64s()
 		l, h := w.GetElem(0), w.GetElem(1)
 		if l|h == 0 {

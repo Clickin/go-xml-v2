@@ -614,13 +614,16 @@ func (d *Decoder) ReadToken() (Token, error) {
 	if d.opts.LegacyDecoder != nil {
 		d.beginLegacy()
 	}
-	var bd boundary
-	ok := false
+	var (
+		bd    boundary
+		first int // with ok, the scanText result of a Text token
+		ok    bool
+	)
 	if d.bi >= d.bn && d.direct {
 		if !d.started {
 			d.start()
 		}
-		bd, ok = d.nextDirect()
+		bd, first, ok = d.nextDirect()
 	}
 	if !ok {
 		if d.bi >= d.bn {
@@ -647,7 +650,12 @@ func (d *Decoder) ReadToken() (Token, error) {
 	case EndElement:
 		err = d.parseEndTag(bd)
 	case Text:
-		err = d.parseText(bd)
+		if ok {
+			d.pendChar = nil
+			err = d.finishText(bd, first)
+		} else {
+			err = d.parseText(bd)
+		}
 	case CData:
 		err = d.parseCData(bd)
 	case Comment:
@@ -765,23 +773,19 @@ const (
 )
 
 // plainWord reports whether all 8 bytes are ASCII in [0x20,0x7f] other than
-// '&' (0x26) and ']' (0x5d); tab and newline are left to the byte loop.
+// '&' (0x26), ']' (0x5d) and '<' (0x3c); tab and newline are left to the byte
+// loop.
 func plainWord(w uint64) bool {
-	if w&^lo7 != 0 { // any high bit
-		return false
-	}
-	// bytes < 0x20: (b - 0x20) borrows into the high bit when b < 0x20
-	lt := (w | 0x8080808080808080) - 0x2020202020202020
-	if ^lt&0x8080808080808080 != 0 {
-		return false
-	}
-	// exact matches for '&' and ']'
-	x := w ^ (ones * 0x26)
-	y := w ^ (ones * 0x5d)
-	if (x-ones)&^x&0x8080808080808080 != 0 || (y-ones)&^y&0x8080808080808080 != 0 {
-		return false
-	}
-	return true
+	const hi = 0x8080808080808080
+	// A byte below 0x20 does not set the high bit of (b|0x80)-0x20. A byte
+	// equal to c is zero in w^c, and (b-1)&^b sets the high bit of a zero
+	// byte. Once any high bit of w is set the result is false whatever the
+	// other terms are, so their borrows across bytes do not matter.
+	lt := ^((w | hi) - 0x2020202020202020)
+	x := w ^ (ones * '&')
+	y := w ^ (ones * ']')
+	z := w ^ (ones * '<')
+	return (w|lt|(x-ones)&^x|(y-ones)&^y|(z-ones)&^z)&hi == 0
 }
 
 func hexRune(r rune) string {

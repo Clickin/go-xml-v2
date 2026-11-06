@@ -6,7 +6,10 @@
 
 package xmltext
 
-import "encoding/binary"
+import (
+	"bytes"
+	"encoding/binary"
+)
 
 // scanText validates body up to the first character that forces decoding
 // ('&' when amps is set, or '\r') and returns its index, or -1 if body is
@@ -67,6 +70,63 @@ func (d *Decoder) scanText(body []byte, at int, bracket, amps bool) (int, error)
 		return 0, e
 	}
 	return -1, nil
+}
+
+// textRun locates the text at the start of b, which ends at the next '<',
+// and checks it as scanText(text, at, true, true) does. It returns the length
+// of the text and the offset of its first '&' or '\r', or -1. It reports
+// false when b holds no '<' or the text has a problem that scanText would
+// report; parseText then handles the text from a boundary.
+func textRun(b []byte) (end, first int, ok bool) {
+	cool := 0
+	for i := 0; i < len(b); {
+		stop := min(i+8, len(b))
+		if i >= cool && i+8 <= len(b) {
+			if plainWord(binary.LittleEndian.Uint64(b[i:])) {
+				i += 8
+				if len(b)-i >= 16 {
+					i += plainPrefix(b[i:])
+				}
+				continue
+			}
+			cool = i + 24
+			stop = min(i+32, len(b))
+		}
+		for ; i < stop; i++ {
+			c := b[i]
+			if c == '<' {
+				return i, -1, true
+			}
+			switch textClass[c] {
+			case cAmp, cCR:
+				// scanText stops here too; the rest is checked while decoding.
+				j := bytes.IndexByte(b[i+1:], '<')
+				if j < 0 {
+					return 0, 0, false
+				}
+				return i + 1 + j, i, true
+			case cBad:
+				return 0, 0, false
+			case cHigh:
+				if plain3(b[i:]) {
+					i += 2
+					continue
+				}
+				// '<' is not a continuation byte, so a sequence never runs
+				// past the end of the text.
+				n := seqLen(b[i:])
+				if n == 0 {
+					return 0, 0, false
+				}
+				i += n - 1
+			case cBracket:
+				if i+2 < len(b) && b[i+1] == ']' && b[i+2] == '>' {
+					return 0, 0, false
+				}
+			}
+		}
+	}
+	return 0, 0, false
 }
 
 // charProblem handles a forbidden control character (ctl) or invalid UTF-8

@@ -34,6 +34,14 @@ func (d *Decoder) parseText(bd boundary) error {
 	if err != nil {
 		return err
 	}
+	return d.finishText(bd, first)
+}
+
+// finishText completes parseText for text that has passed scanText, whose
+// result is first.
+func (d *Decoder) finishText(bd boundary, first int) error {
+	start, end := bd.start, bd.end
+	body := d.buf[start:end]
 	if d.rootDepthCheck(body) {
 		return d.syntaxErr(start, "text outside of root element")
 	}
@@ -42,6 +50,7 @@ func (d *Decoder) parseText(bd boundary) error {
 	d.tokS, d.tokE = start, end
 	d.verbatim = first < 0
 	if first >= 0 {
+		var err error
 		d.scratch = d.scratchFor(len(body))
 		d.scratch, err = d.decodeFused(append(d.scratch, body[:first]...), body, first, start, true, true)
 		if err != nil {
