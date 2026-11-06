@@ -100,6 +100,11 @@ type binding struct {
 // SplitText they arrive in pieces instead; Token.Partial marks a piece that
 // the next token continues, and callers collecting a value must concatenate.
 // ReadElement preserves the original raw bytes.
+//
+// The names a Decoder returns are strings of their own. After its first few
+// names, a Decoder makes them through a small cache (4 KiB, holding at most
+// 256 names of up to 256 bytes each), so that a name repeated in a document
+// is allocated about once.
 type Decoder struct {
 	user           any // state of the encoding/xml/v2 call reading from d; see export.go
 	opts           xmlopts.Options
@@ -188,7 +193,17 @@ type Decoder struct {
 	// when unmarshaling and set through Internal, like the field of the same
 	// name in encoding/json/jsontext.
 	stringCache *[256]string
+
+	// ownNames makes the strings of names otherwise, once uncached names
+	// have been made without it: a document with more names than that
+	// repeats most of them. It is kept across Reset; Release clears it.
+	ownNames *stringCache
+	uncached int
 }
+
+// ownNamesAfter is how many names a Decoder makes before it allocates its
+// own string cache, so that a small document does not pay for one.
+const ownNamesAfter = 32
 
 // NewDecoder returns a Decoder reading from r. A *bytes.Buffer is decoded in
 // place without copying; its contents must not change while decoding.
@@ -247,6 +262,7 @@ func (d *Decoder) reset(opts []Options) {
 		bindings:    d.bindings[:0],
 		capBuf:      d.capBuf[:0],
 		stringCache: d.stringCache,
+		ownNames:    d.ownNames,
 		bnd:         d.bnd,
 		lineNo:      1,
 		eng:         d.eng,
@@ -436,7 +452,26 @@ func (d *Decoder) dropBatch() {
 }
 
 // internBytes returns b as a string, from the string cache when one is set.
-func (d *Decoder) internBytes(b []byte) string { return makeString(d.stringCache, b) }
+func (d *Decoder) internBytes(b []byte) string {
+	c := d.stringCache
+	if c == nil {
+		if c = d.ownNames; c == nil {
+			c = d.makeOwnNames()
+		}
+	}
+	return makeString(c, b)
+}
+
+// makeOwnNames returns d.ownNames, allocating it once d has made
+// ownNamesAfter names without a cache, or nil before then.
+func (d *Decoder) makeOwnNames() *stringCache {
+	if d.uncached < ownNamesAfter {
+		d.uncached++
+		return nil
+	}
+	d.ownNames = new(stringCache)
+	return d.ownNames
+}
 
 // ensureBoundary makes sure the next token's boundary is available. It
 // reports done when the input has no more tokens.

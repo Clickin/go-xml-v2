@@ -156,3 +156,55 @@ func TestBatchDroppedAtEnd(t *testing.T) {
 		}
 	}
 }
+
+// A Decoder makes the strings of repeated names through its own cache once
+// it has made a few, so that reading names does not allocate for each one;
+// a small document makes its few names without a cache.
+func TestDecoderOwnNames(t *testing.T) {
+	testenv.SkipIfOptimizationOff(t)
+	doc := []byte("<root>" + strings.Repeat(`<item id="1"><name>n</name></item>`, 100) + "</root>")
+	names := func(d *Decoder) (n int) {
+		for {
+			tok, err := d.ReadToken()
+			if err == io.EOF {
+				return n
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch tok.Kind() {
+			case StartElement, EndElement:
+				_ = tok.Name()
+				n++
+				for it := tok.Attrs(); it.Next(); {
+					_ = it.Name()
+					n++
+				}
+			}
+		}
+	}
+	d := NewDecoderBytes(doc)
+	if n := names(d); n < 500 {
+		t.Fatalf("read %d names", n)
+	}
+	if allocs := testing.AllocsPerRun(10, func() {
+		d.ResetBytes(doc)
+		names(d)
+	}); allocs > 5 {
+		t.Errorf("reading %d bytes of repeated names: %v allocs, want at most 5", len(doc), allocs)
+	}
+
+	small := []byte(`<a><bb x="1"/></a>`)
+	if d := NewDecoderBytes(small); names(d) > 0 && d.ownNames != nil {
+		t.Errorf("small document: Decoder allocated its own string cache")
+	}
+	d.Release()
+	if d.ownNames == nil {
+		t.Fatal("Release dropped the string cache")
+	}
+	for _, s := range d.ownNames {
+		if s != "" {
+			t.Fatalf("Release kept name %q", s)
+		}
+	}
+}

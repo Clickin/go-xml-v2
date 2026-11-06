@@ -53,6 +53,7 @@ func sizeOf[T any](s []T) int {
 // returns the capacity in bytes of what is kept.
 //
 // The string cache set through Internal is left as is; its owner manages it.
+// The Decoder's own string cache is kept empty.
 //
 // After Release d is unusable until Reset or ResetBytes; any other call
 // returns an error. Tokens and views obtained before Release are invalid.
@@ -80,7 +81,11 @@ func (d *Decoder) Release() (retained int) {
 	d.capturing = false
 	clear(d.capBuf)
 	d.capBuf = keepBytes(d.capBuf)
-	return sizeOf(d.buf) + sizeOf(d.attrs) + sizeOf(d.scratch) + sizeOf(d.attrBuf) +
+	if d.ownNames != nil {
+		clear(d.ownNames[:])
+		retained += int(unsafe.Sizeof(*d.ownNames))
+	}
+	return retained + sizeOf(d.buf) + sizeOf(d.attrs) + sizeOf(d.scratch) + sizeOf(d.attrBuf) +
 		sizeOf(d.nameArena) + sizeOf(d.stack) + sizeOf(d.bindings) + sizeOf(d.capBuf)
 }
 
