@@ -30,6 +30,9 @@ type Hooks struct {
 	NameType          reflect.Type // encoding/xml.Name
 	AttrType          reflect.Type // encoding/xml.Attr
 
+	UnmarshalerType     reflect.Type // encoding/xml.Unmarshaler
+	UnmarshalerAttrType reflect.Type // encoding/xml.UnmarshalerAttr
+
 	// CallMarshaler calls the MarshalXML method of recv with the Encoder
 	// owner, which writes to the same xmltext.Encoder.
 	CallMarshaler func(owner any, recv reflect.Value, start Start) error

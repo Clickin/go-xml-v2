@@ -62,18 +62,22 @@ func (us *unmarshalState) legacyRead(v reflect.Value, started bool) error {
 			}
 		}
 	}
-	return us.legacyValue(v, started)
+	return us.legacyValue(v, started, 0, 0)
 }
 
 // legacyValue reads the element whose start is the current token into
 // val, as encoding/xml's Decoder.unmarshal does.
 // The depth limit is checked unless check is false: encoding/xml checks it
 // before reading the start of a top-level element, and after reading it
-// for the elements inside.
-func (us *unmarshalState) legacyValue(val reflect.Value, check bool) error {
+// for the elements inside. um and item are the unmarshalMethods of the type
+// of val and of its slice items, or 0 if not known yet.
+func (us *unmarshalState) legacyValue(val reflect.Value, check bool, um, item unmarshalMethods) error {
 	src, h := us.src, us.hooks
 	if d := src.Depth(); check && (d > maxLegacyDepth || runtime.GOARCH == "wasm" && d > maxLegacyDepthWasm) {
 		return h.ErrUnmarshalDepth
+	}
+	if um == 0 {
+		um = unmarshalMethodsOf(val.Type())
 	}
 
 	// Load value from interface, but only if the result will be
@@ -90,10 +94,12 @@ func (us *unmarshalState) legacyValue(val reflect.Value, check bool) error {
 		val = val.Elem()
 	}
 
-	if ok, err := h.UnmarshalXML(src, val); ok {
-		return err
+	if um&umXML != 0 {
+		if ok, err := h.UnmarshalXML(src, val); ok {
+			return err
+		}
 	}
-	if m, ok := legacyTextUnmarshaler(val); ok {
+	if m, ok := legacyTextUnmarshaler(val, um); ok {
 		// The character data of the element, not of its children.
 		var buf []byte
 		depth := 1
@@ -119,11 +125,14 @@ func (us *unmarshalState) legacyValue(val reflect.Value, check bool) error {
 	var (
 		data, comment []byte
 		saveData      reflect.Value
+		saveDataUM    = um
 		saveComment   reflect.Value
 		saveXML       reflect.Value
 		saveXMLIndex  int
 		saveXMLData   []byte
 		saveAny       reflect.Value
+		saveAnyUM     unmarshalMethods
+		saveAnyItem   unmarshalMethods
 		sv            reflect.Value
 		sf            *structFields
 	)
@@ -142,7 +151,7 @@ func (us *unmarshalState) legacyValue(val reflect.Value, check bool) error {
 		n := v.Len()
 		v.Grow(1)
 		v.SetLen(n + 1)
-		if err := us.legacyValue(v.Index(n), true); err != nil {
+		if err := us.legacyValue(v.Index(n), true, item, 0); err != nil {
 			v.SetLen(n)
 			return err
 		}
@@ -199,7 +208,7 @@ func (us *unmarshalState) legacyValue(val reflect.Value, check bool) error {
 				case fAttr:
 					fv, _ := fieldValue(addressableValue{Value: sv}, f.index, true)
 					if an.Local == f.name.Local && (f.name.Space == "" || f.name.Space == an.Space) {
-						if err := us.legacyAttr(fv.Value, a, stable); err != nil {
+						if err := us.legacyAttr(fv.Value, a, stable, f.um, f.umItem); err != nil {
 							return err
 						}
 						handled = true
@@ -211,8 +220,9 @@ func (us *unmarshalState) legacyValue(val reflect.Value, check bool) error {
 				}
 			}
 			if !handled && anyAttr >= 0 {
-				fv, _ := fieldValue(addressableValue{Value: sv}, sf.list[anyAttr].index, true)
-				if err := us.legacyAttr(fv.Value, a, stable); err != nil {
+				f := &sf.list[anyAttr]
+				fv, _ := fieldValue(addressableValue{Value: sv}, f.index, true)
+				if err := us.legacyAttr(fv.Value, a, stable, f.um, f.umItem); err != nil {
 					return err
 				}
 			}
@@ -224,7 +234,7 @@ func (us *unmarshalState) legacyValue(val reflect.Value, check bool) error {
 			case fCDATA, fCharData:
 				if !saveData.IsValid() {
 					fv, _ := fieldValue(addressableValue{Value: sv}, f.index, true)
-					saveData = fv.Value
+					saveData, saveDataUM = fv.Value, f.um
 				}
 			case fComment:
 				if !saveComment.IsValid() {
@@ -234,7 +244,7 @@ func (us *unmarshalState) legacyValue(val reflect.Value, check bool) error {
 			case fAny, fAny | fElement:
 				if !saveAny.IsValid() {
 					fv, _ := fieldValue(addressableValue{Value: sv}, f.index, true)
-					saveAny = fv.Value
+					saveAny, saveAnyUM, saveAnyItem = fv.Value, f.um, f.umItem
 				}
 			case fInnerXML:
 				if !saveXML.IsValid() {
@@ -275,7 +285,7 @@ func (us *unmarshalState) legacyValue(val reflect.Value, check bool) error {
 				}
 				if !consumed && saveAny.IsValid() {
 					consumed = true
-					if err := us.legacyValue(saveAny, true); err != nil {
+					if err := us.legacyValue(saveAny, true, saveAnyUM, saveAnyItem); err != nil {
 						return err
 					}
 				}
@@ -312,7 +322,7 @@ func (us *unmarshalState) legacyValue(val reflect.Value, check bool) error {
 	}
 
 	if saveData.IsValid() {
-		if m, ok := legacyTextUnmarshaler(saveData); ok {
+		if m, ok := legacyTextUnmarshaler(saveData, saveDataUM); ok {
 			text := data
 			if len(text) == 0 {
 				text = nil // as encoding/xml, which collects into a nil slice
@@ -347,7 +357,10 @@ func (us *unmarshalState) legacyValue(val reflect.Value, check bool) error {
 
 // legacyTextUnmarshaler returns val, or else its address, as an
 // encoding.TextUnmarshaler, as encoding/xml looks for one.
-func legacyTextUnmarshaler(val reflect.Value) (encoding.TextUnmarshaler, bool) {
+func legacyTextUnmarshaler(val reflect.Value, um unmarshalMethods) (encoding.TextUnmarshaler, bool) {
+	if um&umText == 0 {
+		return nil, false
+	}
 	if val.CanInterface() {
 		if m, ok := reflect.TypeAssert[encoding.TextUnmarshaler](val); ok {
 			return m, true
@@ -361,28 +374,90 @@ func legacyTextUnmarshaler(val reflect.Value) (encoding.TextUnmarshaler, bool) {
 	return nil, false
 }
 
+// unmarshalMethods records which methods encoding/xml could call when it
+// unmarshals into a value of some type, after legacyValue or legacyAttr
+// dereferences a pointer. A clear bit means that no value of the type has
+// the method, so the value needs no dynamic check. Interface types may
+// hold anything.
+type unmarshalMethods uint8
+
+const (
+	umKnown unmarshalMethods = 1 << iota // the other bits are set
+	umXML                                // UnmarshalXML
+	umAttr                               // UnmarshalXMLAttr
+	umText                               // UnmarshalText
+
+	umAny = umKnown | umXML | umAttr | umText
+)
+
+var unmarshalMethodsCache sync.Map // reflect.Type → unmarshalMethods
+
+func unmarshalMethodsOf(t reflect.Type) unmarshalMethods {
+	if um, ok := unmarshalMethodsCache.Load(t); ok {
+		return um.(unmarshalMethods)
+	}
+	um, et := umKnown, t
+	if et.Kind() == reflect.Pointer {
+		et = et.Elem()
+	}
+	if et.Kind() == reflect.Interface {
+		um = umAny
+	} else {
+		h, pt := xmllegacy.V1, reflect.PointerTo(et)
+		has := func(i reflect.Type) bool { return et.Implements(i) || pt.Implements(i) }
+		if has(h.UnmarshalerType) {
+			um |= umXML
+		}
+		if has(h.UnmarshalerAttrType) {
+			um |= umAttr
+		}
+		if has(textUnmarshalerType) {
+			um |= umText
+		}
+	}
+	unmarshalMethodsCache.Store(t, um)
+	return um
+}
+
+// unmarshalItemMethods returns the unmarshalMethods of the items of t, as
+// legacyValue and legacyAttr append them, or 0 if t is not such a slice.
+func unmarshalItemMethods(t reflect.Type) unmarshalMethods {
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Slice || t.Elem().Kind() == reflect.Uint8 {
+		return 0
+	}
+	return unmarshalMethodsOf(t.Elem())
+}
+
 // legacyAttr sets val from attribute a, as encoding/xml's
 // Decoder.unmarshalAttr does. Unless stable, a.Value is a view that val
-// must not keep.
-func (us *unmarshalState) legacyAttr(val reflect.Value, a xmltext.Attr, stable bool) error {
+// must not keep. um and item are as for legacyValue.
+func (us *unmarshalState) legacyAttr(val reflect.Value, a xmltext.Attr, stable bool, um, item unmarshalMethods) error {
 	h := us.hooks
+	if um == 0 {
+		um = unmarshalMethodsOf(val.Type())
+	}
 	if val.Kind() == reflect.Pointer {
 		if val.IsNil() {
 			val.Set(reflect.New(val.Type().Elem()))
 		}
 		val = val.Elem()
 	}
-	if ok, err := h.UnmarshalXMLAttr(val, a); ok {
-		return err
+	if um&umAttr != 0 {
+		if ok, err := h.UnmarshalXMLAttr(val, a); ok {
+			return err
+		}
 	}
-	if m, ok := legacyTextUnmarshaler(val); ok {
+	if m, ok := legacyTextUnmarshaler(val, um); ok {
 		return m.UnmarshalText([]byte(a.Value))
 	}
 	if val.Kind() == reflect.Slice && val.Type().Elem().Kind() != reflect.Uint8 {
 		n := val.Len()
 		val.Grow(1)
 		val.SetLen(n + 1)
-		if err := us.legacyAttr(val.Index(n), a, stable); err != nil {
+		if err := us.legacyAttr(val.Index(n), a, stable, item, 0); err != nil {
 			val.SetLen(n)
 			return err
 		}
@@ -506,7 +581,7 @@ loop:
 		}
 		if len(f.parents) == len(parents) && f.name.Local == name.Local {
 			fv, _ := fieldValue(addressableValue{Value: sv}, f.index, true)
-			return true, us.legacyValue(fv.Value, true)
+			return true, us.legacyValue(fv.Value, true, f.um, f.umItem)
 		}
 		if len(f.parents) > len(parents) && f.parents[len(parents)] == name.Local {
 			recurse = true

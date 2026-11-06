@@ -51,6 +51,9 @@ type field struct {
 	flags   fieldFlags
 
 	fncs *arshaler // the arshaler of typ; nil under legacy rules
+
+	// Under legacy rules, the unmarshalMethods of typ and of its slice items.
+	um, umItem unmarshalMethods
 }
 
 // structFields is the XML view of a struct type.
@@ -137,6 +140,11 @@ func makeStructFields(t reflect.Type, legacy bool) (*structFields, error) {
 		// used, so a recursive type does not recurse here.
 		for i := range sf.list {
 			sf.list[i].fncs = lookupArshaler(sf.list[i].typ)
+		}
+	} else {
+		for i := range sf.list {
+			f := &sf.list[i]
+			f.um, f.umItem = unmarshalMethodsOf(f.typ), unmarshalItemMethods(f.typ)
 		}
 	}
 	return sf, nil

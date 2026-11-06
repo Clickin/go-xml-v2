@@ -485,6 +485,10 @@ func init() {
 		MarshalerAttrType: marshalerAttrType,
 		NameType:          reflect.TypeFor[Name](),
 		AttrType:          attrType,
+
+		UnmarshalerType:     reflect.TypeFor[Unmarshaler](),
+		UnmarshalerAttrType: reflect.TypeFor[UnmarshalerAttr](),
+
 		CallMarshaler: func(owner any, recv reflect.Value, start xmllegacy.Start) error {
 			m, _ := reflect.TypeAssert[Marshaler](recv)
 			s := StartElement{Name: Name(start.Name)}
