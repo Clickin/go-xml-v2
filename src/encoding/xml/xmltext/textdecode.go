@@ -82,11 +82,8 @@ func textRun(b []byte) (end, first int, ok bool) {
 	for i := 0; i < len(b); {
 		stop := min(i+8, len(b))
 		if i >= cool && i+8 <= len(b) {
-			if plainWord(binary.LittleEndian.Uint64(b[i:])) {
+			if plainTextWord(binary.LittleEndian.Uint64(b[i:])) {
 				i += 8
-				if len(b)-i >= 16 {
-					i += plainPrefix(b[i:])
-				}
 				continue
 			}
 			cool = i + 24

@@ -13,7 +13,7 @@ import (
 
 func plainExact(b []byte) int {
 	for i, c := range b {
-		if c < 0x20 || c > 0x7f || c == '&' || c == ']' || c == '<' {
+		if c < 0x20 || c > 0x7f || c == '&' || c == ']' {
 			return i
 		}
 	}

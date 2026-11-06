@@ -9,10 +9,9 @@ package xmltext
 import "encoding/binary"
 
 // plainPrefix returns the length of the leading run of bytes of b that need
-// no attention from the text scanner: ASCII 0x20..0x7f other than '&', ']'
-// and '<' (which ends a text run; see textRun). It may stop early (any
-// multiple of 8 is allowed) but never past a byte that is not plain. This is
-// the portable SWAR version.
+// no attention from the text scanner: ASCII 0x20..0x7f other than '&' and
+// ']'. It may stop early (any multiple of 8 is allowed) but never past a
+// byte that is not plain. This is the portable SWAR version.
 func plainPrefix(b []byte) int {
 	i := 0
 	for ; i+8 <= len(b); i += 8 {

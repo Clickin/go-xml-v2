@@ -767,8 +767,7 @@ const (
 )
 
 // plainWord reports whether all 8 bytes are ASCII in [0x20,0x7f] other than
-// '&' (0x26), ']' (0x5d) and '<' (0x3c); tab and newline are left to the byte
-// loop.
+// '&' (0x26) and ']' (0x5d); tab and newline are left to the byte loop.
 func plainWord(w uint64) bool {
 	const hi = 0x8080808080808080
 	// A byte below 0x20 does not set the high bit of (b|0x80)-0x20. A byte
@@ -778,8 +777,13 @@ func plainWord(w uint64) bool {
 	lt := ^((w | hi) - 0x2020202020202020)
 	x := w ^ (ones * '&')
 	y := w ^ (ones * ']')
+	return (w|lt|(x-ones)&^x|(y-ones)&^y)&hi == 0
+}
+
+// plainTextWord is plainWord for textRun, which also stops at '<'.
+func plainTextWord(w uint64) bool {
 	z := w ^ (ones * '<')
-	return (w|lt|(x-ones)&^x|(y-ones)&^y|(z-ones)&^z)&hi == 0
+	return plainWord(w) && (z-ones)&^z&0x8080808080808080 == 0
 }
 
 func hexRune(r rune) string {
