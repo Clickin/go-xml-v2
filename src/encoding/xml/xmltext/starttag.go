@@ -104,16 +104,39 @@ func (d *Decoder) parseStartTag(bd boundary) error {
 			return d.syntaxErr(at+i, "too many attributes in element (MaxAttributes)")
 		}
 		ns := i
-		for i < limit && !isSpace(tag[i]) && tag[i] != '=' {
+		// As for the element name, plain ASCII names are scanned and validated
+		// in one table pass.
+		nameOK, hasColon := false, false
+		if nameClass[tag[i]] == 1 {
+			hasColon = tag[i] == ':'
 			i++
+			for i < limit {
+				cl := nameClass[tag[i]]
+				if cl == 0 || cl == 3 {
+					break
+				}
+				hasColon = hasColon || tag[i] == ':'
+				i++
+			}
+			nameOK = i >= limit || isSpace(tag[i]) || tag[i] == '='
+		}
+		if !nameOK {
+			i = ns
+			for i < limit && !isSpace(tag[i]) && tag[i] != '=' {
+				i++
+			}
+			if !d.validName(tag[ns:i]) {
+				return d.syntaxErr(at+ns, d.badAttrName(tag[ns:limit]))
+			}
+			hasColon = true // let splitName look
 		}
 		an := tag[ns:i]
-		if !d.validName(an) {
-			return d.syntaxErr(at+ns, d.badAttrName(tag[ns:limit]))
-		}
-		acolon, err := d.splitName(an, at+ns, "expected attribute name in element")
-		if err != nil {
-			return err
+		acolon := -1
+		var err error
+		if hasColon {
+			if acolon, err = d.splitName(an, at+ns, "expected attribute name in element"); err != nil {
+				return err
+			}
 		}
 		for i < limit && isSpace(tag[i]) {
 			i++
