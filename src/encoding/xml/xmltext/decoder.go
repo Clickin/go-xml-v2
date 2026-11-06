@@ -114,7 +114,7 @@ type Decoder struct {
 
 	// effective rule set derived from opts at reset
 	perm        bool // v1 Strict=true acceptance rules
-	direct      bool // strict profile without SplitText: ReadToken may locate tokens itself (nextDirect)
+	direct      bool // strict profile without SplitText: ReadToken may read tokens itself (readDirect)
 	loose       bool // v1 Strict=false acceptance rules
 	frags       bool
 	raw         bool  // RawNesting: no stack, no matching
@@ -614,35 +614,34 @@ func (d *Decoder) ReadToken() (Token, error) {
 	if d.opts.LegacyDecoder != nil {
 		d.beginLegacy()
 	}
-	var (
-		bd    boundary
-		first int // with ok, the scanText result of a Text token
-		ok    bool
-	)
 	if d.bi >= d.bn && d.direct {
 		if !d.started {
 			d.start()
 		}
-		bd, first, ok = d.nextDirect()
-	}
-	if !ok {
-		if d.bi >= d.bn {
-			done, err := d.ensureBoundary()
+		if ok, err := d.readDirect(); ok {
 			if err != nil {
 				return d.fail(err)
 			}
-			if done {
-				return d.atEOF()
-			}
+			d.pos = d.scanPos
+			return Token{d: d, kind: d.kind}, nil
 		}
-		bd = d.bnd[d.bi]
-		if d.loose && d.shouldAutoClose(bd) {
-			d.kind, d.popEnd = EndElement, true
-			d.attrs = d.attrs[:0]
-			return Token{d: d, kind: EndElement}, nil
-		}
-		d.bi++
 	}
+	if d.bi >= d.bn {
+		done, err := d.ensureBoundary()
+		if err != nil {
+			return d.fail(err)
+		}
+		if done {
+			return d.atEOF()
+		}
+	}
+	bd := d.bnd[d.bi]
+	if d.loose && d.shouldAutoClose(bd) {
+		d.kind, d.popEnd = EndElement, true
+		d.attrs = d.attrs[:0]
+		return Token{d: d, kind: EndElement}, nil
+	}
+	d.bi++
 	var err error
 	switch bd.kind {
 	case StartElement:
@@ -650,12 +649,7 @@ func (d *Decoder) ReadToken() (Token, error) {
 	case EndElement:
 		err = d.parseEndTag(bd)
 	case Text:
-		if ok {
-			d.pendChar = nil
-			err = d.finishText(bd, first)
-		} else {
-			err = d.parseText(bd)
-		}
+		err = d.parseText(bd)
 	case CData:
 		err = d.parseCData(bd)
 	case Comment:

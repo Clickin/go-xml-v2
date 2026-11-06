@@ -254,7 +254,149 @@ func (d *Decoder) parseStartTag(bd boundary) error {
 		}
 		d.attrs = append(d.attrs, span)
 	}
+	return d.commitStartTag(at, name, colon, selfClose, hasDecl)
+}
 
+// readStartTag reads the start tag at d.buf[pos:] for readDirect in one pass,
+// without locating it first, when it has the common shape: ASCII names with
+// at most one colon, quoted attribute values of plain ASCII characters
+// (no '&', '<', control or non-ASCII bytes) and fewer than attrSetMin
+// distinct attributes. It fills d.attrs as parseStartTag would. It reports
+// false for any other tag, and for one that does not end inside the buffer,
+// and parseStartTag then reads the tag from a boundary; that includes every
+// tag with a syntax error, so errors are reported as before.
+func (d *Decoder) readStartTag(pos int) (bool, error) {
+	b := d.buf[pos:] // b[0] == '<'
+	name, colon, i := scanQName(b, 1)
+	if name == 0 || i >= len(b) || colon >= 0 && string(b[1:1+colon]) == "xmlns" {
+		return false, nil
+	}
+	d.attrs = d.attrs[:0]
+	d.attrBuf = d.attrBuf[:0]
+	d.attrSetOn = false
+	hasDecl := false
+	for {
+		sp := i
+		for i < len(b) && isSpace(b[i]) {
+			i++
+		}
+		if i >= len(b) {
+			return false, nil
+		}
+		switch b[i] {
+		case '>':
+			return d.endStartTag(pos, i+1, name, colon, false, hasDecl)
+		case '/':
+			if i+1 < len(b) && b[i+1] == '>' {
+				return d.endStartTag(pos, i+2, name, colon, true, hasDecl)
+			}
+			return false, nil
+		}
+		if i == sp || len(d.attrs) >= d.maxAttrs || len(d.attrs) >= attrSetMin-1 {
+			return false, nil
+		}
+		ns := i
+		n, acolon, j := scanQName(b, ns)
+		if n == 0 {
+			return false, nil
+		}
+		an := b[ns:j]
+		for i = j; i < len(b) && isSpace(b[i]); i++ {
+		}
+		if i >= len(b) || b[i] != '=' {
+			return false, nil
+		}
+		for i++; i < len(b) && isSpace(b[i]); i++ {
+		}
+		if i >= len(b) || b[i] != '"' && b[i] != '\'' {
+			return false, nil
+		}
+		q := b[i]
+		vs := i + 1
+		ve := vs
+		for ve < len(b) {
+			if c := b[ve]; c == q || c < 0x20 || c == '<' || c == '&' || c >= 0x80 {
+				break
+			}
+			ve++
+		}
+		if ve >= len(b) || b[ve] != q {
+			return false, nil
+		}
+		i = ve + 1
+		for k := range d.attrs {
+			if bytes.Equal(d.buf[d.attrs[k].name:d.attrs[k].nameEnd], an) {
+				return false, nil
+			}
+		}
+		span := attrSpan{name: pos + ns, colon: acolon, nameEnd: pos + j, val: pos + vs, valEnd: pos + ve, verbatim: true}
+		if acolon >= 0 {
+			span.decl = string(an[:acolon]) == "xmlns"
+		} else {
+			span.decl = string(an) == "xmlns"
+		}
+		hasDecl = hasDecl || span.decl
+		d.attrs = append(d.attrs, span)
+	}
+}
+
+// endStartTag completes readStartTag for a tag of n bytes.
+func (d *Decoder) endStartTag(pos, n, name, colon int, selfClose, hasDecl bool) (bool, error) {
+	if !d.eng.(*t0Engine).fits(n) {
+		return false, nil
+	}
+	d.scanPos = pos + n
+	if len(d.attrs) == 0 && colon < 0 && n-2-name == boolInt(selfClose) {
+		return true, d.pushBare(boundary{start: pos, end: pos + n, kind: StartElement})
+	}
+	return true, d.commitStartTag(pos, d.buf[pos+1:pos+1+name], colon, selfClose, hasDecl)
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// scanQName scans the ASCII name at b[i:] that readStartTag accepts. It
+// returns the name's length, the offset of its colon or -1, and the index
+// after it; a length of 0 means there is no such name at b[i:]: it does not
+// start with a name start character, has a second colon, an empty prefix or
+// local part, or a byte the table does not settle.
+func scanQName(b []byte, i int) (n, colon, end int) {
+	start := i
+	if i >= len(b) || nameClass[b[i]] != 1 || b[i] == ':' {
+		return 0, -1, i
+	}
+	colon = -1
+	for i++; i < len(b); i++ {
+		c := b[i]
+		if cl := nameClass[c]; cl == 0 || cl == 3 {
+			if cl == 3 {
+				return 0, -1, i
+			}
+			break
+		}
+		if c == ':' {
+			if colon >= 0 {
+				return 0, -1, i
+			}
+			colon = i - start
+		}
+	}
+	n = i - start
+	if colon >= 0 && (colon == n-1 || nameClass[b[start+colon+1]] != 1) {
+		return 0, -1, i
+	}
+	return n, colon, i
+}
+
+// commitStartTag completes a start tag at d.buf[at:] whose attributes are in
+// d.attrs: it checks the element against the document, applies namespace
+// declarations and pushes the element. colon is the offset of the colon in
+// name, or -1.
+func (d *Decoder) commitStartTag(at int, name []byte, colon int, selfClose, hasDecl bool) error {
 	if d.raw {
 		d.kind = StartElement
 		d.nameS, d.nameE, d.colon = at+1, at+1+len(name), colon

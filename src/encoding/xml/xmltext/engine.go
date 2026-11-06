@@ -590,76 +590,57 @@ func truncatedMsg(kind Kind, b []byte) (string, int) {
 	return "", len(b)
 }
 
-// nextDirect locates the token at d.scanPos without the batch, for the
-// common kinds the engine would locate in one step: text, an end tag and a
-// start tag that lie whole in the buffer. Text is also checked as
-// scanText does (see textRun), which returns first. nextDirect reports
-// false, changing nothing, for anything else, and the engine then locates
-// the token, including every error and every case that needs more input.
-func (d *Decoder) nextDirect() (bd boundary, first int, ok bool) {
+// readDirect reads the token at d.scanPos without the batch, for the common
+// kinds the engine would locate in one step: text, an end tag and a start
+// tag that lie whole in the buffer. Text and start tags are checked while
+// they are located (see textRun and readStartTag). readDirect reports false
+// for anything else, and the engine then locates the token, including every
+// token with a syntax error and every case that needs more input. It changes
+// nothing before reporting false except state that parsing a token resets.
+func (d *Decoder) readDirect() (bool, error) {
 	e := d.eng.(*t0Engine)
 	pos := d.scanPos
 	b := d.buf[pos:]
 	if e.dirty || e.cdCont || e.textLimit > 0 || len(b) < 2 {
-		return boundary{}, 0, false
+		return false, nil
 	}
-	var (
-		kind  Kind
-		end   int
-		flags uint8
-	)
 	switch {
 	case b[0] != '<':
-		kind = Text
-		if end, first, ok = textRun(b); !ok {
-			return boundary{}, 0, false
+		end, first, ok := textRun(b)
+		if !ok || !e.fits(end) {
+			return false, nil
 		}
+		d.scanPos = pos + end
+		d.pendChar = nil
+		return true, d.finishText(boundary{start: pos, end: pos + end, kind: Text}, first)
 	case b[1] == '/':
-		kind = EndElement
+		end := 0
 		if len(b) > 3 && b[2] != '>' && b[3] == '>' {
 			end = 4
 		} else if j := bytes.IndexByte(b[2:], '>'); j >= 0 {
 			end = j + 3
 		} else {
-			return boundary{}, 0, false
+			return false, nil
 		}
+		if !e.fits(end) {
+			return false, nil
+		}
+		d.scanPos = pos + end
+		return true, d.parseEndTag(boundary{start: pos, end: pos + end, kind: EndElement})
+	case len(b) > 2 && b[2] == '>' && nameClass[b[1]] == 1 && b[1] != ':':
+		// <x>, as in t0Engine.next
+		if !e.fits(3) {
+			return false, nil
+		}
+		d.scanPos = pos + 3
+		return true, d.pushBare(boundary{start: pos, end: pos + 3, kind: StartElement})
 	case b[1] != '?' && b[1] != '!':
-		kind = StartElement
-		if end = startTagEnd(b); end < 0 {
-			return boundary{}, 0, false
-		}
-		if bareTag(b[:end]) {
-			flags = flagBare
-		}
-	default:
-		return boundary{}, 0, false
+		return d.readStartTag(pos)
 	}
-	if m := e.maxToken; m > 0 && end > m {
-		return boundary{}, 0, false
-	}
-	d.scanPos = pos + end
-	return boundary{start: pos, end: pos + end, kind: kind, flags: flags}, first, true
+	return false, nil
 }
 
-// startTagEnd returns the length of the start tag at the beginning of b, or
-// -1 if b does not hold all of it. It is the scan of t0Engine.startTag
-// without resume state.
-func startTagEnd(b []byte) int {
-	for i := 1; i < len(b); {
-		for i < len(b) && !tagStop[b[i]] {
-			i++
-		}
-		if i == len(b) {
-			break
-		}
-		if b[i] == '>' {
-			return i + 1
-		}
-		j := bytes.IndexByte(b[i+1:], b[i])
-		if j < 0 {
-			break
-		}
-		i += j + 2
-	}
-	return -1
+// fits reports whether a token of n bytes is within MaxTokenSize.
+func (e *t0Engine) fits(n int) bool {
+	return e.maxToken <= 0 || n <= e.maxToken
 }

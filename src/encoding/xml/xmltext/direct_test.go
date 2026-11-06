@@ -104,7 +104,40 @@ func directSeeds() []string {
 		"<r>é<é é=\"é\">é</é></r>",
 		"<r></r>trailing",
 		"<r/><s/>",
+		`<r><a b = "1"	c='2' >t</a></r>`,
+		`<r xmlns:p="u"><p:a p:c="1" d="2"/></r>`,
+		`<r><a b="1"c="2"/></r>`,
+		`<r><xmlns:a/></r>`,
+		`<r><a xmlns:="u"/></r>`,
+		`<r><a :b="1"/></r>`,
+		`<r><a b:="1"/></r>`,
+		`<r><a b:c:d="1"/></r>`,
+		`<r><a b="x&amp;y" c="x	y"/></r>`,
+		`<r><a b="1"/ ></r>`,
+		`<r><a/ ></r>`,
+		`<r><a b="1" / ></r>`,
+		`<r><a b/></r>`,
+		`<r><a b=1/></r>`,
+		`<r><a b="1/></r>`,
+		`<r><a xmlns="u" xmlns:q="v" q:x="1" b='>'/></r>`,
+		`<r xmlns:p="u" xmlns:q="u"><a p:x="1" q:x="2"/></r>`,
+		`<r><a xmlns:xml="wrong"/></r>`,
+		`<r><p:a/></r>`,
+		`<r><a p:b="1"/></r>`,
+		"<r><a b=\"\u00e9\"/><\u00e9a/></r>",
+		"<r><a "+strings.Repeat("b", 1)+"=\"1\" "+attrList(40)+"/></r>",
+		"<r><a "+attrList(31)+"/><b "+attrList(30)+" a0=\"x\"/></r>",
+		"<a/><b/>",
+		"<a></a><b x='1'></b>",
 	)
+}
+
+func attrList(n int) string {
+	var sb strings.Builder
+	for i := range n {
+		fmt.Fprintf(&sb, " a%d=\"%d\"", i, i)
+	}
+	return sb.String()
 }
 
 func TestDirectMatchesEngine(t *testing.T) {
