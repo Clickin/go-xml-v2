@@ -7,6 +7,7 @@
 package xml
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -115,3 +116,45 @@ func TestStrictNameFromType(t *testing.T) {
 		t.Fatalf("Unmarshal of <own> in no namespace: %+v, %v", got.Own, err)
 	}
 }
+
+// The type-name rule of TestStrictNameFromType holds for slice items and
+// pointers to them, which Marshal writes with the item type's
+// XMLName.
+func TestStrictNameFromItemType(t *testing.T) {
+	type own struct {
+		XMLName struct{} `xml:"urn:own own"`
+		Leaf    string   `xml:"leaf"`
+	}
+	type root struct {
+		XMLName struct{} `xml:"root"`
+		Owns    []own    `xml:"own"`
+		Ptrs    []*own   `xml:"p>own"`
+	}
+	type qroot struct {
+		XMLName struct{} `xml:"urn:n root,qualified"`
+		Owns    []own    `xml:"own"`
+	}
+	for _, v := range []any{
+		&root{Owns: []own{{Leaf: "1"}, {Leaf: "2"}}, Ptrs: []*own{{Leaf: "3"}}},
+		&qroot{Owns: []own{{Leaf: "1"}, {Leaf: "2"}}},
+	} {
+		out, err := Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := reflectNew(v)
+		if err := Unmarshal(out, got); err != nil {
+			t.Fatal(err)
+		}
+		out2, err := Marshal(got)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(out2) != string(out) {
+			t.Errorf("round trip of %T:\n got %s\nwant %s", v, out2, out)
+		}
+	}
+}
+
+// reflectNew returns a pointer to a new zero value of the type v points to.
+func reflectNew(v any) any { return reflect.New(reflect.TypeOf(v).Elem()).Interface() }

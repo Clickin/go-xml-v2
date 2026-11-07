@@ -314,6 +314,9 @@ func parseField(t reflect.Type, f *reflect.StructField, legacy bool) (*field, er
 				// match.
 				fi.name.Space = xn.name.Space
 			}
+		} else if xn := typeXMLName(itemType(f.Type)); xn != nil && xn.name.Local == fi.name.Local && !legacy {
+			// The same for the items of a slice or array.
+			fi.name.Space = xn.name.Space
 		}
 	}
 	return fi, nil
@@ -337,9 +340,24 @@ func (sf *structFields) qualified(inherited bool) bool {
 	return inherited
 }
 
+// itemType returns the item type of a slice or array type t, after
+// pointers, other than a byte slice; or nil.
+func itemType(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if (t.Kind() == reflect.Slice || t.Kind() == reflect.Array) && t.Elem().Kind() != reflect.Uint8 {
+		return t.Elem()
+	}
+	return nil
+}
+
 // typeXMLName returns the XMLName field of t, after pointers, if it names
 // an element.
 func typeXMLName(t reflect.Type) *field {
+	if t == nil {
+		return nil
+	}
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
