@@ -112,6 +112,7 @@ func (f *typedMarshaler) marshal(ms *marshalState, name xmltext.Name, va address
 		if name, err = a.nameFor(name, va); err != nil {
 			return newMarshalError(ms, name, t, err)
 		}
+		name = ms.resolve(name)
 		enc := ms.enc
 		if err := enc.BeginElement(name); err != nil {
 			return err
@@ -125,10 +126,13 @@ func (f *typedMarshaler) marshal(ms *marshalState, name xmltext.Name, va address
 	if err != nil {
 		return newMarshalError(ms, name, t, err)
 	}
+	name = ms.resolve(name)
 	enc := ms.enc
 	if err := enc.BeginElement(name); err != nil {
 		return err
 	}
+	prevSpace := ms.elemSpace
+	defer func() { ms.elemSpace = prevSpace }()
 	ms.elemSpace = name.Space
 	depth, off := enc.StackDepth(), enc.OutputOffset()+int64(enc.Buffered())
 	err = f.content(ms, va)

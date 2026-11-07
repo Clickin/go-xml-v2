@@ -62,6 +62,7 @@ type Encoder struct {
 	tname   Name
 	tattrs  []encAttr
 	tspaced bool     // a pending attribute has a namespace (or is a declaration)
+	tdefNS  bool     // put the pending element in the default namespace if free; see export.go
 	eager   bool     // the pending start tag is already in buf (no namespace involved yet)
 	akeys   []encKey // attributes of an eagerly written tag
 	akSetOn bool
@@ -386,6 +387,7 @@ func (e *Encoder) BeginElement(name Name) error {
 	e.tattrs = e.tattrs[:0]
 	e.pbuf = e.pbuf[:0]
 	e.tspaced = false
+	e.tdefNS = false
 	e.stack = append(e.stack, encFrame{nsMark: int32(len(e.binds)), prefMark: int32(len(e.prefixes)), seqMark: int32(e.seq)})
 	return nil
 }
@@ -935,7 +937,15 @@ func (e *Encoder) startV2(f *encFrame, selfClose bool) error {
 		return fmt.Errorf("xmltext: element <%s> cannot be in the namespace %s, which is reserved for declarations", name.Local, XMLNSNamespace)
 	case name.Space == e.defNS:
 	default:
-		qpre = e.prefixFor(name.Space)
+		if p, ok := e.lookupURI(name.Space); ok {
+			qpre = p
+		} else if e.tdefNS && e.defNS == "" && !declDef && name.Space != XMLNamespace {
+			e.autos = append(e.autos, nsBind{uri: name.Space})
+			e.saveDef(f)
+			e.defNS = name.Space
+		} else {
+			qpre = e.prefixFor(name.Space)
+		}
 	}
 	// attribute prefixes, in order
 	var apre []string

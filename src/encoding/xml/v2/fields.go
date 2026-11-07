@@ -21,7 +21,7 @@ import (
 //	`xml:"[namespace-URI ][parent>...>]name[,flag...]"`
 //
 // with the flags attr, chardata, cdata, innerxml, comment, any, omitempty
-// and, new here, omitzero.
+// and, new here, omitzero and (on XMLName) qualified.
 
 type fieldFlags uint16
 
@@ -36,6 +36,8 @@ const (
 
 	fOmitEmpty
 	fOmitZero
+
+	fQualified // on XMLName: unqualified element names take the element's namespace
 
 	fMode = fElement | fAttr | fCDATA | fCharData | fInnerXML | fComment | fAny
 )
@@ -241,6 +243,10 @@ func parseField(t reflect.Type, f *reflect.StructField, legacy bool) (*field, er
 				if !legacy {
 					fi.flags |= fOmitZero
 				}
+			case "qualified":
+				if !legacy {
+					fi.flags |= fQualified
+				}
 			}
 		}
 		valid := true
@@ -258,6 +264,9 @@ func parseField(t reflect.Type, f *reflect.StructField, legacy bool) (*field, er
 			fi.flags |= fElement
 		}
 		if fi.flags&(fOmitEmpty|fOmitZero) != 0 && fi.flags&(fElement|fAttr) == 0 {
+			valid = false
+		}
+		if fi.flags&fQualified != 0 && f.Name != xmlNameField {
 			valid = false
 		}
 		if !valid {
@@ -308,6 +317,24 @@ func parseField(t reflect.Type, f *reflect.StructField, legacy bool) (*field, er
 		}
 	}
 	return fi, nil
+}
+
+// qualified reports whether the element names without a namespace in sf
+// take the namespace of the element sf is read from or written as, given
+// whether those of the enclosing struct do. An XMLName tag with qualified
+// turns this on, and one with a namespace but without qualified turns it
+// off, like a JAXB package's elementFormDefault; a struct that names no
+// namespace inherits it.
+func (sf *structFields) qualified(inherited bool) bool {
+	if xn := sf.xmlname; xn != nil {
+		if xn.flags&fQualified != 0 {
+			return true
+		}
+		if xn.name.Space != "" {
+			return false
+		}
+	}
+	return inherited
 }
 
 // typeXMLName returns the XMLName field of t, after pointers, if it names

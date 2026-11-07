@@ -98,12 +98,16 @@ func wrapElement(a *arshaler, t reflect.Type) {
 		if err != nil {
 			return newMarshalError(ms, name, t, err)
 		}
+		name = ms.resolve(name)
 		enc := ms.enc
 		if err := enc.BeginElement(name); err != nil {
 			return err
 		}
+		prev := ms.elemSpace
 		ms.elemSpace = name.Space
-		if err := content(ms, va); err != nil {
+		err = content(ms, va)
+		ms.elemSpace = prev
+		if err != nil {
 			return err
 		}
 		return enc.EndElement()
@@ -532,7 +536,29 @@ func (ms *marshalState) omit(f *field, fv addressableValue) bool {
 	return (f.flags&fOmitZero != 0 || ms.opts.OmitZeroFields) && isZero(fv)
 }
 
+// resolve returns the name of an element written in the content of the
+// current element: a name without a namespace takes the current element's
+// namespace in a qualified struct.
+func (ms *marshalState) resolve(n xmltext.Name) xmltext.Name {
+	if n.Space == "" && ms.qual {
+		n.Space = ms.elemSpace
+	}
+	return n
+}
+
 func (ms *marshalState) marshalStruct(sf *structFields, va addressableValue) error {
+	prev := ms.qual
+	qual := sf.qualified(prev)
+	if qual && ms.elemSpace != "" {
+		export.PreferDefaultNamespace(ms.enc)
+	}
+	ms.qual = qual
+	err := ms.marshalFields(sf, va)
+	ms.qual = prev
+	return err
+}
+
+func (ms *marshalState) marshalFields(sf *structFields, va addressableValue) error {
 	enc := ms.enc
 	for _, i := range sf.attrs {
 		f := &sf.list[i]
@@ -646,7 +672,7 @@ func (ms *marshalState) marshalStruct(sf *structFields, va addressableValue) err
 				continue
 			}
 			for _, p := range f.parents[keep:] {
-				if err := enc.BeginElement(xmltext.Name{Local: p}); err != nil {
+				if err := enc.BeginElement(ms.resolve(xmltext.Name{Local: p})); err != nil {
 					return err
 				}
 			}
@@ -715,21 +741,32 @@ func (ms *marshalState) skipDecl(a xmltext.Attr) bool {
 		a.Value != "" && ms.elemSpace == ""
 }
 
+// resolve returns the name an element in the content of the current
+// element must have for a field named n; see marshalState.resolve.
+func (us *unmarshalState) resolve(n xmltext.Name) xmltext.Name {
+	if n.Space == "" && us.qual {
+		n.Space = us.elemSpace
+	}
+	return n
+}
+
 func (us *unmarshalState) unmarshalStruct(sf *structFields, va addressableValue) error {
-	src := us.src
 	name := us.name()
 	if xn := sf.xmlname; xn != nil {
 		if xn.name.Local != "" && xn.name.Local != name.Local {
 			return newUnmarshalError(us, name, va.Type(), fmt.Errorf("expected element type <%s> but have <%s>", xn.name.Local, name.Local))
 		}
-		if xn.name.Local != "" && xn.name.Space != name.Space {
-			return newUnmarshalError(us, name, va.Type(), fmt.Errorf("expected element <%s> in %s but have %s", xn.name.Local, spaceString(xn.name.Space), spaceString(name.Space)))
+		want := us.resolve(xn.name)
+		if xn.name.Local != "" && want.Space != name.Space {
+			return newUnmarshalError(us, name, va.Type(), fmt.Errorf("expected element <%s> in %s but have %s", xn.name.Local, spaceString(want.Space), spaceString(name.Space)))
 		}
 		if isNameType(xn.typ) {
 			fv, _ := fieldValue(va, xn.index, true)
 			setName(fv.Value, name)
 		}
 	}
+
+	src := us.src
 
 	// Attributes.
 	for {
@@ -820,7 +857,14 @@ func (us *unmarshalState) unmarshalStruct(sf *structFields, va addressableValue)
 			}
 		}()
 	}
+	// Only element names in the content depend on qualified; attribute
+	// names do not. elemSpace is not read unless qual is set.
+	prevSpace, prevQual := us.elemSpace, us.qual
+	if qual := sf.qualified(prevQual); qual || prevQual {
+		us.elemSpace, us.qual = name.Space, qual
+	}
 	err := us.unmarshalFields(sf, va, nil, base, &text, &comment)
+	us.elemSpace, us.qual = prevSpace, prevQual
 	if err == nil && sf.chardata >= 0 {
 		f := &sf.list[sf.chardata]
 		fv, _ := fieldValue(va, f.index, true)
@@ -844,6 +888,12 @@ func (us *unmarshalState) unmarshalStruct(sf *structFields, va addressableValue)
 func (us *unmarshalState) unmarshalFields(sf *structFields, va addressableValue, path []string, base int, text, comment *[]byte) error {
 	src := us.src
 	depth := len(path)
+	// bare is the namespace of the element names a field tag without a
+	// namespace stands for; see structFields.qualified.
+	bare := ""
+	if us.qual {
+		bare = us.elemSpace
+	}
 	for {
 		mark := 0
 		if depth == 0 && sf.innerxml >= 0 {
@@ -856,14 +906,20 @@ func (us *unmarshalState) unmarshalFields(sf *structFields, va addressableValue,
 		switch k {
 		case xmltext.StartElement:
 			n := us.name()
-			if f := sf.match(n, path); f != nil {
+			var f *field
+			if bare == "" {
+				f = sf.match(n, path)
+			} else {
+				f = sf.matchQualified(n, bare, path)
+			}
+			if f != nil {
 				fv, _ := fieldValue(va, f.index, true)
 				if err := us.unmarshalWith(fv, f.fncs); err != nil {
 					return err
 				}
 				continue
 			}
-			if f := sf.matchParent(n, path); f != nil {
+			if f := sf.matchParent(n, bare, path); f != nil {
 				if err := us.unmarshalFields(sf, va, f.parents[:depth+1], base, nil, nil); err != nil {
 					return err
 				}
@@ -919,10 +975,29 @@ func (sf *structFields) match(n xmltext.Name, path []string) *field {
 	return nil
 }
 
+// matchQualified is match in a qualified struct, where a field tag without
+// a namespace names an element in the namespace bare and not one in no
+// namespace. It is kept apart so that match stays small enough to inline.
+func (sf *structFields) matchQualified(n xmltext.Name, bare string, path []string) *field {
+	for _, i := range sf.elems {
+		f := &sf.list[i]
+		space := f.name.Space
+		if space == "" {
+			space = bare
+		}
+		if f.flags&fAny != 0 || len(f.parents) != len(path) || f.name.Local != n.Local || space != n.Space || !hasPath(f, path) {
+			continue
+		}
+		return f
+	}
+	return nil
+}
+
 // matchParent returns a field with parent n after path. Parent elements
-// are in no namespace, as Marshal writes them.
-func (sf *structFields) matchParent(n xmltext.Name, path []string) *field {
-	if n.Space != "" {
+// are in the namespace bare (no namespace, or the current element's in a
+// qualified struct), as Marshal writes them.
+func (sf *structFields) matchParent(n xmltext.Name, bare string, path []string) *field {
+	if n.Space != bare {
 		return nil
 	}
 	for _, i := range sf.elems {

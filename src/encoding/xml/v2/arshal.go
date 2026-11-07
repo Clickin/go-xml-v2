@@ -33,6 +33,7 @@ type marshalState struct {
 	marshalers *Marshalers
 	buf        []byte // scratch for text; see takeBuf
 	elemSpace  string // namespace of the element whose content is being written
+	qual       bool   // names without a namespace take elemSpace; see structFields.qualified
 
 	legacyState // for encoding/xml; see arshal_legacy.go
 }
@@ -49,6 +50,9 @@ type unmarshalState struct {
 
 	legacy bool             // encoding/xml semantics; see arshal_legacy_read.go
 	hooks  *xmllegacy.Hooks // if legacy
+
+	elemSpace string // namespace of the element whose content is being read
+	qual      bool   // names without a namespace take elemSpace; see structFields.qualified
 }
 
 func (ms *marshalState) init(enc *xmltext.Encoder, o xmlopts.Options) {

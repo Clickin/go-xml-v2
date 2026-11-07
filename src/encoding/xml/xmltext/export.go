@@ -56,5 +56,17 @@ func (export) RawDecl(d *Decoder) bool { return d.rawDecl }
 // ReadToken without keeping the Token.
 func (export) StartToken(d *Decoder) Token { return Token{d: d, kind: StartElement} }
 
+// PreferDefaultNamespace asks e to write the pending start tag, whose
+// element has a namespace, in the default namespace when the element's
+// namespace has no prefix in scope and no default namespace is in scope,
+// instead of generating a prefix. encoding/xml/v2 uses it for the elements
+// of a qualified struct, whose unqualified children share their namespace,
+// so that they need no xmlns="".
+func (export) PreferDefaultNamespace(e *Encoder) {
+	if e.inStart && !e.eager {
+		e.tdefNS = true
+	}
+}
+
 // Capturing reports whether d has a capture active; see StartCapture.
 func (export) Capturing(d *Decoder) bool { return d.capturing }

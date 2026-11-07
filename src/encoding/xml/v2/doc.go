@@ -27,8 +27,19 @@
 // an element or attribute in no namespace, as in Namespaces in XML 1.0,
 // and does not match the same local name in another namespace; elements of
 // a parent>child chain are in no namespace. An XMLName tag with a name
-// requires the element to have that name and namespace. (encoding/xml
+// requires the element to have that name and namespace, and a field whose
+// tag has no namespace takes the name of its type's XMLName tag, namespace
+// included. (encoding/xml
 // matches a name without a namespace in any namespace.)
+//
+// The flag qualified on an XMLName tag, as in `xml:"urn:n root,qualified"`,
+// puts the element names without a namespace of that struct in the
+// namespace of its element, like a JAXB package with elementFormDefault
+// QUALIFIED: a field tagged "items" then names {urn:n}items, and so do the
+// elements of a parent>child chain. Structs written as its children inherit
+// this unless their own XMLName tag names a namespace. Marshal writes such
+// an element in the default namespace when that is free, so that its
+// children need no prefix. Attribute names are not affected.
 //
 // Unmarshal puts the namespace declarations of an element into its
 // ",any,attr" field when that field is a slice of attributes, named as the
