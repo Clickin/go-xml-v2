@@ -1,5 +1,7 @@
 # XML parser benchmarks: Windows and WSL Linux amd64
 
+The darwin/arm64 run behind the `encoding/xml` numbers in the `GOEXPERIMENT=xmlv2` issue (one 16 MiB document, Apple M4) is in [`darwin-arm64`](darwin-arm64/README.md).
+
 The `windows-amd64` directory contains the original Go benchmark suite and the comparisons with Woodstox and quick-xml. The most directly comparable cross-platform experiment uses eight identical files from stax-xml and is recorded in `windows-amd64/assets-comparison` and `linux-amd64`. Both runs use Go revision `bd5149100704087efd1edf06bfb7d6956aa636ac`, Woodstox 7.2.0 and quick-xml 0.42.0 on the same Intel i5-13600K. All 24 implementation/asset event counts and checksums match across operating systems. Asset sizes and SHA-256 hashes are in `windows-amd64/assets-comparison/assets.csv`.
 
 | Asset | Size (bytes) | Windows Go MiB/s | Woodstox MiB/s | quick-xml MiB/s | Go÷Woodstox | Go÷quick-xml | WSL Go MiB/s | Woodstox MiB/s | quick-xml MiB/s | Go÷Woodstox | Go÷quick-xml |

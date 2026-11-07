@@ -1,0 +1,207 @@
+{
+  "generatedAt": "2026-11-06T05:01:09.070Z",
+  "fixture": {
+    "path": "~/github/stax-xml/packages/benchmark/test-data/runtime-comparison-16mib.xml",
+    "sizeBytes": 16777038,
+    "contract": "end-to-end file I/O and full pull-reader materialization"
+  },
+  "options": {
+    "warmups": 3,
+    "runs": 10
+  },
+  "environment": {
+    "node": "v26.13.0",
+    "java": "25.0.5",
+    "woodstox": "6.7.0",
+    "rust": "1.98.1",
+    "quickXml": "0.40.1"
+  },
+  "cases": {
+    "stax-xml": [
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.16963137499999995,
+        "throughputMiBs": 94.3211728724812
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.16183570800000052,
+        "throughputMiBs": 98.8646476337078
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.16173825000000033,
+        "throughputMiBs": 98.92422012709824
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.1700975840000001,
+        "throughputMiBs": 94.062654328892
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.167788458,
+        "throughputMiBs": 95.35715648552942
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.1600037080000002,
+        "throughputMiBs": 99.99662161561695
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.1613051660000001,
+        "throughputMiBs": 99.18981916531841
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.15866804100000081,
+        "throughputMiBs": 100.83839281769161
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.16095600000000013,
+        "throughputMiBs": 99.40499419699587
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.15944745799999965,
+        "throughputMiBs": 100.34547083197597
+      }
+    ],
+    "woodstox": [
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.046941583,
+        "throughputMiBs": 340.8455621526798
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.04698775,
+        "throughputMiBs": 340.510670248558
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.045614166,
+        "throughputMiBs": 350.76450254448764
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.046367333,
+        "throughputMiBs": 345.0668651995076
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.045398583,
+        "throughputMiBs": 352.4301682713683
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.04594325,
+        "throughputMiBs": 348.25203367135936
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.045515709,
+        "throughputMiBs": 351.5232564205839
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.045719458,
+        "throughputMiBs": 349.95669121824847
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.045260125,
+        "throughputMiBs": 353.5083088253
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.045215875,
+        "throughputMiBs": 353.85426569698535
+      }
+    ],
+    "quick-xml": [
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.027942416,
+        "throughputMiBs": 572.6001017940496
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.02810675,
+        "throughputMiBs": 569.2522346401373
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.027853042,
+        "throughputMiBs": 574.4374437080043
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.0277225,
+        "throughputMiBs": 577.1424022354289
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.028044625,
+        "throughputMiBs": 570.5132532872763
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.027756042,
+        "throughputMiBs": 576.444950111103
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.0279235,
+        "throughputMiBs": 572.9879938392995
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.027792917,
+        "throughputMiBs": 575.6801362725503
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.028385583,
+        "throughputMiBs": 563.6604414984776
+      },
+      {
+        "events": 967965,
+        "checksum": 36104832,
+        "seconds": 0.028193042,
+        "throughputMiBs": 567.5098929009391
+      }
+    ]
+  }
+}
