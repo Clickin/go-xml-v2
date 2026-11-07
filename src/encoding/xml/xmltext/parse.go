@@ -28,6 +28,10 @@ func (d *Decoder) scratchFor(n int) []byte {
 }
 
 func (d *Decoder) parseText(bd boundary) error {
+	if bd.flags&flagChecked != 0 {
+		d.pendChar = nil
+		return d.finishText(bd, int(bd.first))
+	}
 	start, end := bd.start, bd.end
 	body := d.buf[start:end]
 	first, err := d.scanText(body, start, true, true)

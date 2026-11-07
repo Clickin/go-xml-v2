@@ -6,10 +6,7 @@
 
 package xmltext
 
-import (
-	"bytes"
-	"encoding/binary"
-)
+import "encoding/binary"
 
 // scanText validates body up to the first character that forces decoding
 // ('&' when amps is set, or '\r') and returns its index, or -1 if body is
@@ -72,60 +69,6 @@ func (d *Decoder) scanText(body []byte, at int, bracket, amps bool) (int, error)
 	return -1, nil
 }
 
-// textRun locates the text at the start of b, which ends at the next '<',
-// and checks it as scanText(text, at, true, true) does. It returns the length
-// of the text and the offset of its first '&' or '\r', or -1. It reports
-// false when b holds no '<' or the text has a problem that scanText would
-// report; parseText then handles the text from a boundary.
-func textRun(b []byte) (end, first int, ok bool) {
-	cool := 0
-	for i := 0; i < len(b); {
-		stop := min(i+8, len(b))
-		if i >= cool && i+8 <= len(b) {
-			if plainTextWord(binary.LittleEndian.Uint64(b[i:])) {
-				i += 8
-				continue
-			}
-			cool = i + 24
-			stop = min(i+32, len(b))
-		}
-		for ; i < stop; i++ {
-			c := b[i]
-			if c == '<' {
-				return i, -1, true
-			}
-			switch textClass[c] {
-			case cAmp, cCR:
-				// scanText stops here too; the rest is checked while decoding.
-				j := bytes.IndexByte(b[i+1:], '<')
-				if j < 0 {
-					return 0, 0, false
-				}
-				return i + 1 + j, i, true
-			case cBad:
-				return 0, 0, false
-			case cHigh:
-				if plain3(b[i:]) {
-					i += 2
-					continue
-				}
-				// '<' is not a continuation byte, so a sequence never runs
-				// past the end of the text.
-				n := seqLen(b[i:])
-				if n == 0 {
-					return 0, 0, false
-				}
-				i += n - 1
-			case cBracket:
-				if i+2 < len(b) && b[i+1] == ']' && b[i+2] == '>' {
-					return 0, 0, false
-				}
-			}
-		}
-	}
-	return 0, 0, false
-}
-
 // charProblem handles a forbidden control character (ctl) or invalid UTF-8
 // at body[i]. The default profile returns the error; the permissive profiles
 // remember the first one and return nil so the scan continues (see deferChar).
@@ -165,7 +108,7 @@ func (d *Decoder) deferChar(e error) bool {
 // (if amps) and line endings resolved, in a single pass. dst already holds
 // the decoded form of body[:from].
 func (d *Decoder) decodeFused(dst, body []byte, from, at int, bracket, amps bool) ([]byte, error) {
-	run := from
+	run, cool := from, 0
 	cls := &textClass
 	if !bracket && amps && !d.perm { // attribute value
 		cls = &attrClass
@@ -183,6 +126,7 @@ func (d *Decoder) decodeFused(dst, body []byte, from, at int, bracket, amps bool
 			}
 			i++
 			run = i
+			i, cool = skipPlain(body, i, cool)
 		case cAmp:
 			if !amps {
 				i++
@@ -191,33 +135,31 @@ func (d *Decoder) decodeFused(dst, body []byte, from, at int, bracket, amps bool
 			dst = append(dst, body[run:i]...)
 			if i+4 <= len(body) {
 				// predefined entities without the ';' search
+				var c byte
+				n := 0
 				switch binary.LittleEndian.Uint32(body[i:]) {
 				case fourcc("&lt;"):
-					dst, i = append(dst, '<'), i+4
-					run = i
-					continue
+					c, n = '<', 4
 				case fourcc("&gt;"):
-					dst, i = append(dst, '>'), i+4
-					run = i
-					continue
+					c, n = '>', 4
 				case fourcc("&amp"):
 					if i+5 <= len(body) && body[i+4] == ';' {
-						dst, i = append(dst, '&'), i+5
-						run = i
-						continue
+						c, n = '&', 5
 					}
 				case fourcc("&quo"):
 					if i+6 <= len(body) && body[i+4] == 't' && body[i+5] == ';' {
-						dst, i = append(dst, '"'), i+6
-						run = i
-						continue
+						c, n = '"', 6
 					}
 				case fourcc("&apo"):
 					if i+6 <= len(body) && body[i+4] == 's' && body[i+5] == ';' {
-						dst, i = append(dst, '\''), i+6
-						run = i
-						continue
+						c, n = '\'', 6
 					}
+				}
+				if n != 0 {
+					dst, i = append(dst, c), i+n
+					run = i
+					i, cool = skipPlain(body, i, cool)
+					continue
 				}
 			}
 			j := i + 1
@@ -275,6 +217,7 @@ func (d *Decoder) decodeFused(dst, body []byte, from, at int, bracket, amps bool
 						d.deferChar(e)
 						i = j + 1
 						run = i
+						i, cool = skipPlain(body, i, cool)
 						continue
 					}
 					return dst, d.syntaxErr(at+i, "illegal character code in reference "+string(clip(body[i:j+1])))
@@ -291,14 +234,17 @@ func (d *Decoder) decodeFused(dst, body []byte, from, at int, bracket, amps bool
 				i = j + 1
 			}
 			run = i
+			i, cool = skipPlain(body, i, cool)
 		case cCR:
 			dst = append(dst, body[run:i]...)
 			i++
 			if i < len(body) && body[i] == '\n' {
 				run = i // keep the \n, drop the \r
+				i, cool = skipPlain(body, i, cool)
 			} else {
 				dst = append(dst, '\n')
 				run = i
+				i, cool = skipPlain(body, i, cool)
 			}
 		case cBad:
 			if err := d.charProblem(body, i, at, flagsOf(bracket, amps, true)); err != nil {
@@ -331,6 +277,34 @@ func (d *Decoder) decodeFused(dst, body []byte, from, at int, bracket, amps bool
 		return dst, e
 	}
 	return append(dst, body[run:]...), nil
+}
+
+// skipPlain returns the end of the plain ASCII words of b from i on (see
+// plainWord). decodeFused calls it after each reference and line end, the
+// only places where a long run of plain text can begin, so the byte loop
+// itself pays nothing for it.
+//
+// When there is no word to skip, the references are dense and a test per
+// reference costs more than it saves (a predefined entity takes a few
+// nanoseconds), so the test pauses until cool, 256 bytes on.
+func skipPlain(b []byte, i, cool int) (int, int) {
+	if i < cool {
+		return i, cool
+	}
+	return skipWords(b, i)
+}
+
+// skipWords is the out-of-line part of skipPlain.
+func skipWords(b []byte, i int) (int, int) {
+	cool := 0
+	k := i
+	for k+8 <= len(b) && plainWord(binary.LittleEndian.Uint64(b[k:])) {
+		k += 8
+	}
+	if k == i {
+		cool = i + 256
+	}
+	return k, cool
 }
 
 func fourcc(s string) uint32 {

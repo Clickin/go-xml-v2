@@ -147,7 +147,7 @@ type Decoder struct {
 	memoStart int64
 
 	// boundary engine and its batch of located, not yet parsed tokens
-	eng     boundaryEngine
+	eng     *t0Engine
 	bnd     *[maxBatch]boundary // from batchPool while tokens are read; see dropBatch
 	bi, bn  int
 	scanPos int   // window index where the engine continues scanning
@@ -781,12 +781,6 @@ func plainWord(w uint64) bool {
 	x := w ^ (ones * '&')
 	y := w ^ (ones * ']')
 	return (w|lt|(x-ones)&^x|(y-ones)&^y)&hi == 0
-}
-
-// plainTextWord is plainWord for textRun, which also stops at '<'.
-func plainTextWord(w uint64) bool {
-	z := w ^ (ones * '<')
-	return plainWord(w) && (z-ones)&^z&0x8080808080808080 == 0
 }
 
 func hexRune(r rune) string {

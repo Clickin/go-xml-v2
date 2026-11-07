@@ -100,7 +100,7 @@ func newDec(in string, form, window int, opts ...Options) *Decoder {
 		d = NewDecoder(&randChunkReader{r: strings.NewReader(in), rng: rand.New(rand.NewSource(int64(len(in)))), max: 40}, opts...)
 	}
 	if window > 0 {
-		d.eng.(*t0Engine).textLimit = window
+		d.eng.textLimit = window
 	}
 	return d
 }
@@ -506,7 +506,7 @@ func TestWholeTextBufferBoundedByLimit(t *testing.T) {
 
 func TestPartialOfClonedAndOtherKinds(t *testing.T) {
 	d := NewDecoderBytes([]byte("<r><![CDATA["+strings.Repeat("a", 40)+"]]></r>"), SplitText(true))
-	d.eng.(*t0Engine).textLimit = 16
+	d.eng.textLimit = 16
 	var sawPartial bool
 	for {
 		tk, err := d.ReadToken()

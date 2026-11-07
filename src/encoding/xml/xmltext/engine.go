@@ -8,6 +8,7 @@ package xmltext
 
 import (
 	"bytes"
+	"math"
 	"strings"
 	"unicode/utf8"
 
@@ -15,12 +16,15 @@ import (
 )
 
 // boundary is one token located in the window: buf[start:end] is the whole
-// token including its delimiters. flags is reserved for engines that learn
-// "contains & or \r" for free (block-index engines, plan §4.8.1).
+// token including its delimiters. flags holds what the engine established
+// while locating it (flagBare...); for a Text token with flagChecked, first
+// is the offset of its first '&' or '\r', or -1, and the bytes before it are
+// valid character data (see scanTextRun).
 type boundary struct {
 	start, end int
+	first      int32
 	kind       Kind
-	flags      uint8 // flagBare... hints the engine already established
+	flags      uint8
 }
 
 // engineError is a problem found while locating token boundaries. at is an
@@ -35,33 +39,27 @@ const (
 	textWindow = 32 << 10
 )
 
-// boundaryEngine locates token boundaries; the common layer (range parsers,
-// names, namespaces, positions) never looks for delimiters itself, so any
-// engine can drive it. Internal, not public API.
-type boundaryEngine interface {
-	// next scans window[pos:] and records up to len(out) complete tokens,
-	// returning how many. needInput reports that a token is incomplete and
-	// more input could complete it; the engine keeps resume state for the
-	// token that starts at the pos of the next call. When final is set the
-	// window is all the input there will be. err describes a malformed or
-	// truncated token located after the n recorded ones.
-	next(window []byte, pos int, final bool, out []boundary) (n int, needInput bool, err *engineError)
-	reset(maxToken int, permissive, split bool)
-}
-
 // scanState lets a boundary search resume after a refill without rescanning.
 // Offsets are relative to the start of the token.
 type scanState struct {
 	from       int
-	quote      byte
 	depth      int
+	special    int // text: 1 + offset of the first '&' or '\r' found, or 0
+	quote      byte
 	inComment  bool
 	heldEntity bool // a reference beginning at byte zero cannot be split
+	unchecked  bool // text: scanTextRun found a problem; only '<' is searched for
 }
 
-// t0Engine is the portable scalar engine: one token at a time, using
-// bytes.IndexByte/bytes.Index for delimiter search.
-// T1 replaces the single-byte search at reset; token grammar stays here.
+// t0Engine locates token boundaries; the common layer (range parsers,
+// names, namespaces, positions) never looks for delimiters itself. next
+// scans window[pos:] and records up to len(out) complete tokens, returning
+// how many. needInput reports that a token is incomplete and more input
+// could complete it; the engine keeps resume state (scanState) for the
+// token that starts at the pos of the next call. When final is set the
+// window is all the input there will be. err describes a malformed or
+// truncated token located after the n recorded ones. Text runs are located
+// and checked by scanTextRun, the scanner readDirect uses too.
 type t0Engine struct {
 	dirty      bool // st may be non-zero
 	st         scanState
@@ -72,7 +70,6 @@ type t0Engine struct {
 	permissive bool
 	badMsg     string
 	badOff     int // offset into the token at which the permissive lexer reports badMsg
-	indexByte  func([]byte, byte) int
 }
 
 func (e *t0Engine) reset(maxToken int, permissive, split bool) {
@@ -83,7 +80,7 @@ func (e *t0Engine) reset(maxToken int, permissive, split bool) {
 			limit = min(limit, maxToken)
 		}
 	}
-	*e = t0Engine{maxToken: maxToken, textLimit: limit, permissive: permissive, indexByte: bytes.IndexByte}
+	*e = t0Engine{maxToken: maxToken, textLimit: limit, permissive: permissive}
 }
 
 func (e *t0Engine) next(w []byte, pos int, final bool, out []boundary) (int, bool, *engineError) {
@@ -95,21 +92,23 @@ func (e *t0Engine) next(w []byte, pos int, final bool, out []boundary) (int, boo
 		var kind Kind
 		var end, res int
 		var flags uint8
+		first := int32(-1)
 		b := w[pos:]
 		cont := e.cdCont
 		switch {
 		case cont:
 			kind, end, res = e.cdata(b, 0)
 		case b[0] != '<':
-			if len(b) > 1 && b[1] == '<' {
-				kind, end, res = Text, 1, scanOK
+			kind = Text
+			if len(b) > 1 && b[1] == '<' && !e.dirty {
+				end, res = 1, scanOK
 			} else {
-				kind, end, res = e.text(b, final)
+				end, res, flags, first = e.text(b, final)
 			}
 		case len(b) > 2 && b[1] == '/' && !e.dirty:
 			if len(b) > 3 && b[2] != '>' && b[3] == '>' {
 				kind, end, res = EndElement, 4, scanOK
-			} else if j := e.indexByte(b[2:], '>'); j >= 0 {
+			} else if j := bytes.IndexByte(b[2:], '>'); j >= 0 {
 				kind, end, res = EndElement, j+3, scanOK
 			} else {
 				kind, end, res = e.token(b, final)
@@ -163,7 +162,7 @@ func (e *t0Engine) next(w []byte, pos int, final bool, out []boundary) (int, boo
 		if kind == CData && !cont {
 			flags |= flagCDHead
 		}
-		out[n] = boundary{start: pos, end: pos + end, kind: kind, flags: flags}
+		out[n] = boundary{start: pos, end: pos + end, first: first, kind: kind, flags: flags}
 		n++
 		pos += end
 		if e.dirty {
@@ -174,59 +173,109 @@ func (e *t0Engine) next(w []byte, pos int, final bool, out []boundary) (int, boo
 	return n, false, nil
 }
 
-// text locates the end of a text run. With SplitText (textLimit > 0) a run
-// longer than the limit is cut at a safe point and marked partial; a
-// reference longer than the limit stays whole. MaxTokenSize bounds that
-// unsplittable reference when configured.
-func (e *t0Engine) text(b []byte, final bool) (Kind, int, int) {
+// text locates the end of a text run and checks it with scanTextRun. For a
+// checked run it returns flagChecked and the offset of the first '&' or
+// '\r', or -1. A run with a problem is only located; parseText then reports
+// the problem.
+func (e *t0Engine) text(b []byte, final bool) (end, res int, flags uint8, first int32) {
+	if e.textLimit > 0 {
+		end, res = e.splitText(b, final)
+		return end, res, 0, -1
+	}
+	st := &e.st
+	if !st.unchecked {
+		n, f, r := scanTextRun(b, st.from, st.special-1)
+		switch r {
+		case textDone:
+			return n, scanOK, checkedFlag(f), int32(f)
+		case textNeed:
+			if final {
+				// the run ends with the input; it is checked if nothing is left
+				// unscanned at its end (an incomplete sequence or "]")
+				if n < len(b) {
+					return len(b), scanOK, 0, -1
+				}
+				return len(b), scanOK, checkedFlag(f), int32(f)
+			}
+			e.dirty = true
+			st.from, st.special = n, f+1
+			return 0, scanNeed, 0, -1
+		}
+		e.dirty = true
+		st.unchecked, st.from = true, n
+	}
+	if j := bytes.IndexByte(b[st.from:], '<'); j >= 0 {
+		return st.from + j, scanOK, 0, -1
+	}
+	if final {
+		return len(b), scanOK, 0, -1
+	}
+	st.from = len(b)
+	return 0, scanNeed, 0, -1
+}
+
+// checkedFlag is flagChecked for a run checked up to first, unless first
+// does not fit in boundary.first.
+func checkedFlag(first int) uint8 {
+	if first > math.MaxInt32 {
+		return 0
+	}
+	return flagChecked
+}
+
+// splitText locates the end of a text piece for SplitText: a run longer than
+// textLimit is cut at a safe point and marked partial; a reference longer
+// than the limit stays whole. MaxTokenSize bounds that unsplittable
+// reference when configured. The pieces are checked by parseText.
+func (e *t0Engine) splitText(b []byte, final bool) (int, int) {
 	st := &e.st
 	if st.heldEntity {
 		from := st.from
-		lt := e.indexByte(b[from:], '<')
-		semi := e.indexByte(b[from:], ';')
+		lt := bytes.IndexByte(b[from:], '<')
+		semi := bytes.IndexByte(b[from:], ';')
 		if lt >= 0 && (semi < 0 || lt < semi) {
-			return Text, from + lt, scanOK
+			return from + lt, scanOK
 		}
 		if semi >= 0 {
 			end := from + semi + 1
 			if end == len(b) && !final {
-				return Text, 0, scanNeed // whether the run goes on depends on the next byte
+				return 0, scanNeed // whether the run goes on depends on the next byte
 			}
 			e.partial = end < len(b) && b[end] != '<'
-			return Text, end, scanOK
+			return end, scanOK
 		}
 		if final {
-			return Text, len(b), scanOK
+			return len(b), scanOK
 		}
 		st.from = len(b)
-		return Text, 0, scanNeed
+		return 0, scanNeed
 	}
 	limit := e.textLimit
 	until := len(b)
 	if limit > 0 {
 		until = min(until, limit+1)
 	}
-	if j := e.indexByte(b[st.from:until], '<'); j >= 0 {
-		return Text, st.from + j, scanOK
+	if j := bytes.IndexByte(b[st.from:until], '<'); j >= 0 {
+		return st.from + j, scanOK
 	}
 	if limit <= 0 || len(b) <= limit {
 		if final {
-			return Text, len(b), scanOK
+			return len(b), scanOK
 		}
 		st.from = len(b)
-		return Text, 0, scanNeed
+		return 0, scanNeed
 	}
 	end := safeEnd(b[:limit], true)
 	if end > 0 {
 		e.partial = true // b[end] exists and is not '<'
-		return Text, end, scanOK
+		return end, scanOK
 	}
 	if b[0] == '&' {
 		e.dirty = true
 		st.heldEntity, st.from = true, limit
-		return e.text(b, final)
+		return e.splitText(b, final)
 	}
-	return Text, 0, scanNeed
+	return 0, scanNeed
 }
 
 // cdata locates the end of a CDATA piece of b: head is the length of the
@@ -317,14 +366,15 @@ const (
 func (e *t0Engine) token(b []byte, final bool) (Kind, int, int) {
 	st := &e.st
 	if b[0] != '<' {
-		return e.text(b, final)
+		end, res, _, _ := e.text(b, final)
+		return Text, end, res
 	}
 	if len(b) < 2 {
 		return Invalid, 0, scanNeed
 	}
 	switch b[1] {
 	case '/':
-		j := e.indexByte(b[max(st.from, 2):], '>')
+		j := bytes.IndexByte(b[max(st.from, 2):], '>')
 		if j < 0 {
 			st.from = len(b)
 			return EndElement, 0, scanNeed
@@ -405,7 +455,7 @@ func (e *t0Engine) startTag(b []byte) (Kind, int, int) {
 				}
 			}
 			if j < 0 && i+16 < len(b) {
-				if j = e.indexByte(b[i+16:], sc.quote); j >= 0 {
+				if j = bytes.IndexByte(b[i+16:], sc.quote); j >= 0 {
 					j += 16
 				}
 			}
@@ -454,7 +504,7 @@ func (e *t0Engine) directive(b []byte, final bool) (Kind, int, int) {
 		}
 		c := b[i]
 		if sc.quote != 0 {
-			j := e.indexByte(b[i:], sc.quote)
+			j := bytes.IndexByte(b[i:], sc.quote)
 			if j < 0 {
 				sc.from = len(b)
 				return Directive, 0, scanNeed
@@ -504,6 +554,7 @@ const flagBare = 1
 const (
 	flagPartial = 2
 	flagCDHead  = 4
+	flagChecked = 8
 )
 
 // bareTag reports whether tag (a complete start tag including '<' and '>')
@@ -593,12 +644,15 @@ func truncatedMsg(kind Kind, b []byte) (string, int) {
 // readDirect reads the token at d.scanPos without the batch, for the common
 // kinds the engine would locate in one step: text, an end tag and a start
 // tag that lie whole in the buffer. Text and start tags are checked while
-// they are located (see textRun and readStartTag). readDirect reports false
-// for anything else, and the engine then locates the token, including every
-// token with a syntax error and every case that needs more input. It changes
-// nothing before reporting false except state that parsing a token resets.
+// they are located (see scanTextRun and readStartTag). readDirect reports
+// false for anything else, and the engine then locates the token, including
+// every token with a syntax error and every case that needs more input. It
+// changes nothing before reporting false except state that parsing a token
+// resets, and the engine's resume state for a text run that goes on past
+// the buffer: the engine continues that run at d.scanPos where the scan here
+// stopped.
 func (d *Decoder) readDirect() (bool, error) {
-	e := d.eng.(*t0Engine)
+	e := d.eng
 	pos := d.scanPos
 	b := d.buf[pos:]
 	if e.dirty || e.cdCont || e.textLimit > 0 || len(b) < 2 {
@@ -606,8 +660,12 @@ func (d *Decoder) readDirect() (bool, error) {
 	}
 	switch {
 	case b[0] != '<':
-		end, first, ok := textRun(b)
-		if !ok || !e.fits(end) {
+		end, first, res := scanTextRun(b, 0, -1)
+		if res != textDone || !e.fits(end) {
+			if res == textNeed {
+				e.dirty = true
+				e.st.from, e.st.special = end, first+1
+			}
 			return false, nil
 		}
 		d.scanPos = pos + end

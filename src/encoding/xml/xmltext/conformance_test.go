@@ -469,7 +469,7 @@ func TestLongEntityAcrossWindow(t *testing.T) {
 		for limit := 1; limit <= 12; limit++ {
 			in := "<r>ab" + ref + "cd" + ref + "</r>"
 			d := NewDecoderBytes([]byte(in), ents, SplitText(true))
-			d.eng.(*t0Engine).textLimit = limit
+			d.eng.textLimit = limit
 			var text strings.Builder
 			for {
 				tk, err := d.ReadToken()

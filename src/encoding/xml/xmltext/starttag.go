@@ -367,9 +367,13 @@ func (d *Decoder) wideValue(pos, vs, pfxEnd int, q byte) (ve, val, valEnd int, v
 	if bytes.IndexByte(v[pfx:], '<') >= 0 {
 		return 0, 0, 0, false, false
 	}
-	first, err := d.scanText(v, pos+vs, false, true)
+	// v[:pfx] is plain ASCII, checked by readStartTag
+	first, err := d.scanText(v[pfx:], pos+vs+pfx, false, true)
 	if err != nil {
 		return 0, 0, 0, false, false
+	}
+	if first >= 0 {
+		first += pfx
 	}
 	if first = firstAttrSpace(v, pfx, first); first < 0 {
 		return ve, pos + vs, pos + ve, true, true
@@ -384,7 +388,7 @@ func (d *Decoder) wideValue(pos, vs, pfxEnd int, q byte) (ve, val, valEnd int, v
 
 // endStartTag completes readStartTag for a tag of n bytes.
 func (d *Decoder) endStartTag(pos, n, name, colon int, selfClose, hasDecl bool) (bool, error) {
-	if !d.eng.(*t0Engine).fits(n) {
+	if !d.eng.fits(n) {
 		return false, nil
 	}
 	d.scanPos = pos + n

@@ -33,7 +33,7 @@ func (e rtEvent) String() string {
 func readEvents(in []byte, window int) (evs []rtEvent, toks []Token, err error) {
 	d := NewDecoderBytes(in, SplitText(window > 0))
 	if window > 0 {
-		d.eng.(*t0Engine).textLimit = window
+		d.eng.textLimit = window
 	}
 	for {
 		tk, err := d.ReadToken()
