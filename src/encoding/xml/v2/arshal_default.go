@@ -102,6 +102,7 @@ func wrapElement(a *arshaler, t reflect.Type) {
 		if err := enc.BeginElement(name); err != nil {
 			return err
 		}
+		ms.elemSpace = name.Space
 		if err := content(ms, va); err != nil {
 			return err
 		}
@@ -681,12 +682,12 @@ func (ms *marshalState) appendRawText(fv addressableValue) ([]byte, error) {
 func (ms *marshalState) marshalAnyAttr(f *field, fv addressableValue) error {
 	switch {
 	case isAttrType(f.typ):
-		if a := getAttr(fv.Value); a.Name.Local != "" {
+		if a := getAttr(fv.Value); a.Name.Local != "" && !ms.skipDecl(a) {
 			return ms.enc.Attr(a.Name, a.Value)
 		}
 	case f.typ.Kind() == reflect.Slice && isAttrType(f.typ.Elem()):
 		for i := range fv.Len() {
-			if a := getAttr(fv.Index(i)); a.Name.Local != "" {
+			if a := getAttr(fv.Index(i)); a.Name.Local != "" && !ms.skipDecl(a) {
 				if err := ms.enc.Attr(a.Name, a.Value); err != nil {
 					return err
 				}
@@ -694,6 +695,16 @@ func (ms *marshalState) marshalAnyAttr(f *field, fv addressableValue) error {
 		}
 	}
 	return nil
+}
+
+// skipDecl reports whether a, from an any,attr field, is a default namespace
+// declaration that the element being written cannot carry: an element in no
+// namespace cannot declare a default namespace. Such a declaration comes from
+// reading <e xmlns="u"> into a struct whose element name has no namespace;
+// it is dropped, as it was before declarations were kept.
+func (ms *marshalState) skipDecl(a xmltext.Attr) bool {
+	return a.Name.Space == xmltext.XMLNSNamespace && a.Name.Local == "xmlns" &&
+		a.Value != "" && ms.elemSpace == ""
 }
 
 func (us *unmarshalState) unmarshalStruct(sf *structFields, va addressableValue) error {
@@ -719,6 +730,21 @@ func (us *unmarshalState) unmarshalStruct(sf *structFields, va addressableValue)
 			break
 		}
 		if isNSDecl(an) {
+			// A []Attr any,attr field keeps the declarations, so that
+			// marshaling writes the same prefixes and a prefix used only
+			// in content (xsi:type="p:T") stays declared.
+			if sf.anyAttr >= 0 {
+				f := &sf.list[sf.anyAttr]
+				if f.typ.Kind() == reflect.Slice && isAttrType(f.typ.Elem()) {
+					if an.Space == "" {
+						an = xmltext.Name{Space: xmltext.XMLNSNamespace, Local: "xmlns"}
+					}
+					fv, _ := fieldValue(va, f.index, true)
+					n := fv.Len()
+					fv.Set(reflect.Append(fv.Value, reflect.Zero(f.typ.Elem())))
+					setAttr(fv.Index(n), xmltext.Attr{Name: an, Value: string(value)})
+				}
+			}
 			continue
 		}
 		matched := false

@@ -129,12 +129,14 @@ func (f *typedMarshaler) marshal(ms *marshalState, name xmltext.Name, va address
 	if err := enc.BeginElement(name); err != nil {
 		return err
 	}
+	ms.elemSpace = name.Space
 	depth, off := enc.StackDepth(), enc.OutputOffset()+int64(enc.Buffered())
 	err = f.content(ms, va)
 	if err == SkipFunc {
 		if a.content == nil || enc.StackDepth() != depth || enc.OutputOffset()+int64(enc.Buffered()) != off {
 			return newMarshalError(ms, name, t, errSkipMisplace)
 		}
+		ms.elemSpace = name.Space
 		err = a.content(ms, va)
 	}
 	if err != nil {

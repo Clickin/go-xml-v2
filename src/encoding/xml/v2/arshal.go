@@ -32,6 +32,7 @@ type marshalState struct {
 	opts       xmlopts.Options
 	marshalers *Marshalers
 	buf        []byte // scratch for text; see takeBuf
+	elemSpace  string // namespace of the element whose content is being written
 
 	legacyState // for encoding/xml; see arshal_legacy.go
 }
