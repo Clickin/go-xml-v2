@@ -294,9 +294,17 @@ func parseField(t reflect.Type, f *reflect.StructField, legacy bool) (*field, er
 		fi.parents = parents[:len(parents)-1]
 	}
 	if fi.flags&fElement != 0 {
-		if xn := typeXMLName(f.Type); xn != nil && xn.name.Local != fi.name.Local {
-			return nil, fmt.Errorf("xml: name %q in tag of %s.%s conflicts with name %q in %s.XMLName",
-				fi.name.Local, t, f.Name, xn.name.Local, f.Type)
+		if xn := typeXMLName(f.Type); xn != nil {
+			if xn.name.Local != fi.name.Local {
+				return nil, fmt.Errorf("xml: name %q in tag of %s.%s conflicts with name %q in %s.XMLName",
+					fi.name.Local, t, f.Name, xn.name.Local, f.Type)
+			}
+			if !legacy {
+				// Marshal writes the element with the name of the type's
+				// XMLName tag, namespace included, so that is the name to
+				// match.
+				fi.name.Space = xn.name.Space
+			}
 		}
 	}
 	return fi, nil

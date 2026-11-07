@@ -697,6 +697,14 @@ func (ms *marshalState) marshalAnyAttr(f *field, fv addressableValue) error {
 	return nil
 }
 
+// spaceString describes a namespace for an error message.
+func spaceString(space string) string {
+	if space == "" {
+		return "no namespace"
+	}
+	return "name space " + space
+}
+
 // skipDecl reports whether a, from an any,attr field, is a default namespace
 // declaration that the element being written cannot carry: an element in no
 // namespace cannot declare a default namespace. Such a declaration comes from
@@ -714,8 +722,8 @@ func (us *unmarshalState) unmarshalStruct(sf *structFields, va addressableValue)
 		if xn.name.Local != "" && xn.name.Local != name.Local {
 			return newUnmarshalError(us, name, va.Type(), fmt.Errorf("expected element type <%s> but have <%s>", xn.name.Local, name.Local))
 		}
-		if xn.name.Space != "" && xn.name.Space != name.Space {
-			return newUnmarshalError(us, name, va.Type(), fmt.Errorf("expected element <%s> in name space %s but have %s", xn.name.Local, xn.name.Space, name.Space))
+		if xn.name.Local != "" && xn.name.Space != name.Space {
+			return newUnmarshalError(us, name, va.Type(), fmt.Errorf("expected element <%s> in %s but have %s", xn.name.Local, spaceString(xn.name.Space), spaceString(name.Space)))
 		}
 		if isNameType(xn.typ) {
 			fv, _ := fieldValue(va, xn.index, true)
@@ -750,7 +758,7 @@ func (us *unmarshalState) unmarshalStruct(sf *structFields, va addressableValue)
 		matched := false
 		for _, i := range sf.attrs {
 			f := &sf.list[i]
-			if f.name.Local != an.Local || f.name.Space != "" && f.name.Space != an.Space {
+			if f.name.Local != an.Local || f.name.Space != an.Space {
 				continue
 			}
 			fv, _ := fieldValue(va, f.index, true)
@@ -855,7 +863,7 @@ func (us *unmarshalState) unmarshalFields(sf *structFields, va addressableValue,
 				}
 				continue
 			}
-			if f := sf.matchParent(n.Local, path); f != nil {
+			if f := sf.matchParent(n, path); f != nil {
 				if err := us.unmarshalFields(sf, va, f.parents[:depth+1], base, nil, nil); err != nil {
 					return err
 				}
@@ -903,8 +911,7 @@ func (us *unmarshalState) unmarshalFields(sf *structFields, va addressableValue,
 func (sf *structFields) match(n xmltext.Name, path []string) *field {
 	for _, i := range sf.elems {
 		f := &sf.list[i]
-		if f.flags&fAny != 0 || len(f.parents) != len(path) || f.name.Local != n.Local ||
-			f.name.Space != "" && f.name.Space != n.Space || !hasPath(f, path) {
+		if f.flags&fAny != 0 || len(f.parents) != len(path) || f.name != n || !hasPath(f, path) {
 			continue
 		}
 		return f
@@ -912,11 +919,15 @@ func (sf *structFields) match(n xmltext.Name, path []string) *field {
 	return nil
 }
 
-// matchParent returns a field with parent local after path.
-func (sf *structFields) matchParent(local string, path []string) *field {
+// matchParent returns a field with parent n after path. Parent elements
+// are in no namespace, as Marshal writes them.
+func (sf *structFields) matchParent(n xmltext.Name, path []string) *field {
+	if n.Space != "" {
+		return nil
+	}
 	for _, i := range sf.elems {
 		f := &sf.list[i]
-		if len(f.parents) > len(path) && f.parents[len(path)] == local && hasPath(f, path) {
+		if len(f.parents) > len(path) && f.parents[len(path)] == n.Local && hasPath(f, path) {
 			return f
 		}
 	}

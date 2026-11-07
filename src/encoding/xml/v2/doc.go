@@ -23,6 +23,13 @@
 // then character data, comments and child elements in field order. The
 // struct tag grammar is that of encoding/xml, with omitzero added.
 //
+// Names match exactly, namespace included. A tag without a namespace names
+// an element or attribute in no namespace, as in Namespaces in XML 1.0,
+// and does not match the same local name in another namespace; elements of
+// a parent>child chain are in no namespace. An XMLName tag with a name
+// requires the element to have that name and namespace. (encoding/xml
+// matches a name without a namespace in any namespace.)
+//
 // Unmarshal puts the namespace declarations of an element into its
 // ",any,attr" field when that field is a slice of attributes, named as the
 // Decoder names them (Space XMLNSNamespace), and Marshal writes them back,
