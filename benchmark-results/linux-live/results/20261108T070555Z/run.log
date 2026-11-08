@@ -1,0 +1,141 @@
+work dir: /home/ubuntu/xmlbench
+results:  /home/ubuntu/xmlbench/results-20261108T070555Z
+
+== download go1.26.0 (bootstrap)
+/home/ubuntu/xmlben   0%[                    ]       0  --.-KB/s               /home/ubuntu/xmlben   0%[                    ] 497.35K  2.43MB/s               /home/ubuntu/xmlben  17%[==>                 ]  10.88M  25.7MB/s               /home/ubuntu/xmlben  57%[==========>         ]  36.59M  58.7MB/s               /home/ubuntu/xmlben  89%[================>   ]  57.09M  69.3MB/s               /home/ubuntu/xmlben 100%[===================>]  63.67M  71.7MB/s    in 0.9s    
+/home/ubuntu/xmlbench/boot.tgz: OK
+
+== download xml-v2-poc at c759c45a38
+/home/ubuntu/xmlben     [<=>                 ]       0  --.-KB/s               /home/ubuntu/xmlben     [ <=>                ]   2.50M  12.1MB/s               /home/ubuntu/xmlben     [  <=>               ]   4.25M  10.4MB/s               /home/ubuntu/xmlben     [   <=>              ]   5.50M  8.77MB/s               /home/ubuntu/xmlben     [    <=>             ]   7.14M  8.63MB/s               /home/ubuntu/xmlben     [     <=>            ]   8.75M  8.50MB/s               /home/ubuntu/xmlben     [      <=>           ]  10.25M  8.31MB/s               /home/ubuntu/xmlben     [       <=>          ]  11.60M  8.10MB/s               /home/ubuntu/xmlben     [        <=>         ]  13.75M  8.32MB/s               /home/ubuntu/xmlben     [         <=>        ]  15.50M  8.31MB/s               /home/ubuntu/xmlben     [          <=>       ]  17.75M  8.53MB/s               /home/ubuntu/xmlben     [           <=>      ]  18.95M  8.16MB/s               /home/ubuntu/xmlben     [            <=>     ]  22.25M  8.75MB/s               /home/ubuntu/xmlben     [             <=>    ]  24.00M  8.73MB/s               /home/ubuntu/xmlben     [              <=>   ]  25.75M  8.73MB/s               /home/ubuntu/xmlben     [               <=>  ]  27.50M  8.65MB/s               /home/ubuntu/xmlben     [                <=> ]  29.25M  8.62MB/s               /home/ubuntu/xmlben     [                 <=>]  30.83M  8.32MB/s               /home/ubuntu/xmlben     [                <=> ]  32.25M  8.34MB/s               /home/ubuntu/xmlben     [               <=>  ]  33.75M  8.34MB/s               /home/ubuntu/xmlben     [              <=>   ]  35.01M  8.41MB/s    in 4.2s    
+
+== build the toolchain (a few minutes)
+Building Go cmd/dist using /home/ubuntu/xmlbench/go1.26.0. (go1.26.0 linux/amd64)
+Building Go toolchain1 and bootstrap cmd/go (go_bootstrap) using /home/ubuntu/xmlbench/go1.26.0.
+Building Go toolchain2 using go_bootstrap and Go toolchain1.
+Building Go toolchain3 and commands using go_bootstrap and Go toolchain2.
+Checking command staleness for linux/amd64.
+---
+Installed Go for linux/amd64 in /home/ubuntu/xmlbench/go-c759c45a388b282e324d7cd9404e5a078e490d34
+Installed commands in /home/ubuntu/xmlbench/go-c759c45a388b282e324d7cd9404e5a078e490d34/bin
+*** You need to add /home/ubuntu/xmlbench/go-c759c45a388b282e324d7cd9404e5a078e490d34/bin to your PATH.
+go version go1.28-devel_c759c45a38 Sun Nov 8 08:06:42 2026 +0900 linux/amd64
+
+== generate the 16 MiB fixture
+/home/ubuntu/xmlbench/runtime-comparison-16mib.xml: OK
+
+== build the harness for both builds
+	build	GOEXPERIMENT=xmlv2
+date_utc: 20261108T070555Z
+kernel: 7.0.0-30-generic
+model name	: 13th Gen Intel(R) Core(TM) i5-13600K
+pinned_cpus: 0-11 (performance cores (/sys/devices/cpu_core/cpus))
+governor: performance (was powersave)
+intel_pstate no_turbo: 0 (was 0)
+MemTotal:       65549096 kB
+virtualization: none
+unknown
+go: go version go1.28-devel_c759c45a38 Sun Nov 8 08:06:42 2026 +0900 linux/amd64
+xml-v2-poc: c759c45a388b282e324d7cd9404e5a078e490d34
+fixture: 1285dbb0d198c4c5e579faa626f7ef02b0b279b1182d37d4039f3acb5929d7d4
+rounds: 20, warmups: 3, runs: 10
+PRETTY_NAME="Ubuntu 26.04.1 LTS"
+
+== measure: 20 rounds
+round 1/20 done
+round 2/20 done
+round 3/20 done
+round 4/20 done
+round 5/20 done
+round 6/20 done
+round 7/20 done
+round 8/20 done
+round 9/20 done
+round 10/20 done
+round 11/20 done
+round 12/20 done
+round 13/20 done
+round 14/20 done
+round 15/20 done
+round 16/20 done
+round 17/20 done
+round 18/20 done
+round 19/20 done
+round 20/20 done
+
+== summarize
+# GOEXPERIMENT=xmlv2 reader benchmark
+
+```
+date_utc: 20261108T070555Z
+kernel: 7.0.0-30-generic
+model name	: 13th Gen Intel(R) Core(TM) i5-13600K
+pinned_cpus: 0-11 (performance cores (/sys/devices/cpu_core/cpus))
+governor: performance (was powersave)
+intel_pstate no_turbo: 0 (was 0)
+MemTotal:       65549096 kB
+virtualization: none
+unknown
+go: go version go1.28-devel_c759c45a38 Sun Nov 8 08:06:42 2026 +0900 linux/amd64
+xml-v2-poc: c759c45a388b282e324d7cd9404e5a078e490d34
+fixture: 1285dbb0d198c4c5e579faa626f7ef02b0b279b1182d37d4039f3acb5929d7d4
+rounds: 20, warmups: 3, runs: 10
+PRETTY_NAME="Ubuntu 26.04.1 LTS"
+```
+
+One 16 MiB document (16,777,038 bytes), file read included. Each process: warmups, then timed runs; a process counts as one sample (its median). Rounds alternate which build runs first.
+
+| Case | Build | Median of process medians | MiB/s | Allocs / run | Processes |
+|---|---|---:|---:|---:|---:|
+| `encoding/xml Token` | current | 215.07 ms | 74.4 | 3,125,804 | 20 |
+| `encoding/xml Token` | GOEXPERIMENT=xmlv2 | 95.58 ms | 167.4 | 1,360,842 | 20 |
+| `encoding/xml Unmarshal` | current | 314.64 ms | 50.9 | 4,600,375 | 20 |
+| `encoding/xml Unmarshal` | GOEXPERIMENT=xmlv2 | 130.61 ms | 122.5 | 1,024,986 | 20 |
+| `xmltext ReadToken` | GOEXPERIMENT=xmlv2 | 36.96 ms | 432.9 | 161 | 20 |
+| `encoding/xml/v2 Unmarshal` | GOEXPERIMENT=xmlv2 | 77.02 ms | 207.7 | 563,589 | 20 |
+
+Ratio current ÷ xmlv2 for the same case, paired by round (larger means xmlv2 is faster):
+
+| Case | Median ratio | Min | Max |
+|---|---:|---:|---:|
+| `encoding/xml Token` | 2.249× | 2.237× | 2.260× |
+| `encoding/xml Unmarshal` | 2.409× | 2.390× | 2.421× |
+
+All readers matched the expected events and checksum (967,965 / 36,104,832); all Unmarshal cases decoded the same records.
+
+go: downloading golang.org/x/perf v0.0.0-20261009192801-be2c69fb417e
+go: downloading github.com/aclements/go-moremath v0.0.0-20210112150236-f10218a38794
+goos: linux
+goarch: amd64
+pkg: encoding/xml
+cpu: 13th Gen Intel(R) Core(TM) i5-13600K
+                 │     none     │                xmlv2                │
+                 │    sec/op    │   sec/op     vs base                │
+DecoderToken       215.07m ± 0%   95.58m ± 0%  -55.56% (p=0.000 n=20)
+Unmarshal           314.6m ± 0%   130.6m ± 0%  -58.49% (p=0.000 n=20)
+XMLTextReadToken                  36.96m ± 0%
+V2Unmarshal                       77.02m ± 0%
+geomean             260.1m        77.21m       -57.05%
+
+                 │     none     │                 xmlv2                  │
+                 │     B/s      │      B/s       vs base                 │
+DecoderToken       74.40Mi ± 0%   167.39Mi ± 0%  +125.00% (p=0.000 n=20)
+Unmarshal          50.85Mi ± 0%   122.50Mi ± 0%  +140.90% (p=0.000 n=20)
+XMLTextReadToken                   432.9Mi ± 0%
+V2Unmarshal                        207.7Mi ± 0%
+geomean            61.51Mi         207.2Mi       +132.82%
+
+                 │     none      │                xmlv2                 │
+                 │     B/op      │     B/op      vs base                │
+DecoderToken       117.65Mi ± 0%   69.04Mi ± 0%  -41.32% (p=0.000 n=20)
+Unmarshal          198.17Mi ± 0%   72.08Mi ± 0%  -63.63% (p=0.000 n=20)
+XMLTextReadToken                   16.01Mi ± 0%
+V2Unmarshal                        64.25Mi ± 0%
+geomean             152.7Mi        47.56Mi       -53.80%
+
+                 │    none     │                xmlv2                │
+                 │  allocs/op  │  allocs/op   vs base                │
+DecoderToken       3.126M ± 0%   1.361M ± 0%  -56.46% (p=0.000 n=20)
+Unmarshal          4.600M ± 0%   1.025M ± 0%  -77.72% (p=0.000 n=20)
+XMLTextReadToken                  161.0 ± 0%
+V2Unmarshal                      563.6k ± 0%
+geomean            3.792M        106.1k       -68.86%

@@ -4,6 +4,31 @@ This kit runs the `encoding/xml` reader benchmark from [`../darwin-arm64`](../da
 
 Korean instructions: [`README.ko.md`](README.ko.md).
 
+## Results
+
+Intel i5-13600K, 64 GB, Ubuntu 26.04.1 live session (kernel 7.0.0-30, not virtualized), 2026-11-08. Go built from `xml-v2-poc` at c759c45a38. Processes pinned to the performance cores (CPUs 0–11), governor `performance`, turbo on. 20 rounds; one sample is the median of one process's 10 timed runs. Each timed run reads the file and parses it.
+
+| Reader | Median of process medians | Throughput | Allocs / run |
+|---|---:|---:|---:|
+| `encoding/xml` `Decoder.Token`, current | 215.07 ms | 74.4 MiB/s | 3,125,804 |
+| `encoding/xml` `Decoder.Token`, `GOEXPERIMENT=xmlv2` | 95.58 ms | 167.4 MiB/s | 1,360,842 |
+| `encoding/xml` `Unmarshal`, current | 314.64 ms | 50.9 MiB/s | 4,600,375 |
+| `encoding/xml` `Unmarshal`, `GOEXPERIMENT=xmlv2` | 130.61 ms | 122.5 MiB/s | 1,024,986 |
+| `encoding/xml/v2` `Unmarshal` | 77.02 ms | 207.7 MiB/s | 563,589 |
+| `xmltext` `ReadToken` | 36.96 ms | 432.9 MiB/s | 161 |
+
+Ratio current ÷ xmlv2, paired by round (larger means xmlv2 is faster):
+
+| Case | Median | Min | Max |
+|---|---:|---:|---:|
+| `Decoder.Token` | 2.25× | 2.24× | 2.26× |
+| `Unmarshal` | 2.41× | 2.39× | 2.42× |
+
+- All readers produced the expected events and checksum (967,965 / 36,104,832), and all `Unmarshal` cases decoded the same records.
+- In each case the 20 process medians lie within 0.6–1.6% of each other; no process ran in a separate slow mode.
+- The darwin/arm64 table in [`../darwin-arm64`](../darwin-arm64/README.md) was measured at an earlier commit (75affe4032) on a different machine, so compare the two only by ratio.
+- Everything the run wrote is in [`results/20261108T070555Z`](results/20261108T070555Z): `summary.md`, `benchstat.txt`, `environment.txt`, `lscpu.txt`, `run.log`, and the JSON output of every process in `raw/`.
+
 ## What it needs
 
 - Linux on x86-64 (arm64 also works), with network access

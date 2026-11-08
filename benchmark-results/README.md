@@ -2,7 +2,7 @@
 
 The darwin/arm64 run behind the `encoding/xml` numbers in the `GOEXPERIMENT=xmlv2` issue (one 16 MiB document, Apple M4) is in [`darwin-arm64`](darwin-arm64/README.md).
 
-To repeat that run on bare-metal Linux (for example an Ubuntu live USB session, with nothing installed), use the kit in [`linux-live`](linux-live/README.md).
+The same comparison on bare-metal Linux amd64 (Intel i5-13600K, Ubuntu live USB session, c759c45a38) is in [`linux-live`](linux-live/README.md#results): `Decoder.Token` 2.25× and `Unmarshal` 2.41× faster under `GOEXPERIMENT=xmlv2`, over 20 interleaved process pairs. The same directory has the kit to repeat it on any Linux machine with nothing installed.
 
 The `windows-amd64` directory contains the original Go benchmark suite and the comparisons with Woodstox and quick-xml. The most directly comparable cross-platform experiment uses eight identical files from stax-xml and is recorded in `windows-amd64/assets-comparison` and `linux-amd64`. Both runs use Go revision `bd5149100704087efd1edf06bfb7d6956aa636ac`, Woodstox 7.2.0 and quick-xml 0.42.0 on the same Intel i5-13600K. All 24 implementation/asset event counts and checksums match across operating systems. Asset sizes and SHA-256 hashes are in `windows-amd64/assets-comparison/assets.csv`.
 

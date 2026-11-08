@@ -1,0 +1,14 @@
+date_utc: 20261108T070555Z
+kernel: 7.0.0-30-generic
+model name	: 13th Gen Intel(R) Core(TM) i5-13600K
+pinned_cpus: 0-11 (performance cores (/sys/devices/cpu_core/cpus))
+governor: performance (was powersave)
+intel_pstate no_turbo: 0 (was 0)
+MemTotal:       65549096 kB
+virtualization: none
+unknown
+go: go version go1.28-devel_c759c45a38 Sun Nov 8 08:06:42 2026 +0900 linux/amd64
+xml-v2-poc: c759c45a388b282e324d7cd9404e5a078e490d34
+fixture: 1285dbb0d198c4c5e579faa626f7ef02b0b279b1182d37d4039f3acb5929d7d4
+rounds: 20, warmups: 3, runs: 10
+PRETTY_NAME="Ubuntu 26.04.1 LTS"

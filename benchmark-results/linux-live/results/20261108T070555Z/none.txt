@@ -1,0 +1,44 @@
+goos: linux
+goarch: amd64
+pkg: encoding/xml
+cpu: 13th Gen Intel(R) Core(TM) i5-13600K
+BenchmarkDecoderToken 1 215478286 ns/op 77.86 MB/s 123369312 B/op 3125809 allocs/op
+BenchmarkDecoderToken 1 214410108 ns/op 78.25 MB/s 123368784 B/op 3125804 allocs/op
+BenchmarkDecoderToken 1 215424099 ns/op 77.88 MB/s 123368816 B/op 3125804 allocs/op
+BenchmarkDecoderToken 1 215308068 ns/op 77.92 MB/s 123368840 B/op 3125804 allocs/op
+BenchmarkDecoderToken 1 215017862 ns/op 78.03 MB/s 123369048 B/op 3125806 allocs/op
+BenchmarkDecoderToken 1 214538730 ns/op 78.20 MB/s 123368800 B/op 3125804 allocs/op
+BenchmarkDecoderToken 1 215311580 ns/op 77.92 MB/s 123368856 B/op 3125804 allocs/op
+BenchmarkDecoderToken 1 215118794 ns/op 77.99 MB/s 123368776 B/op 3125804 allocs/op
+BenchmarkDecoderToken 1 215114080 ns/op 77.99 MB/s 123368760 B/op 3125804 allocs/op
+BenchmarkDecoderToken 1 214553716 ns/op 78.20 MB/s 123368952 B/op 3125806 allocs/op
+BenchmarkDecoderToken 1 214592869 ns/op 78.18 MB/s 123368720 B/op 3125803 allocs/op
+BenchmarkDecoderToken 1 214606548 ns/op 78.18 MB/s 123368800 B/op 3125804 allocs/op
+BenchmarkDecoderToken 1 214611506 ns/op 78.17 MB/s 123368720 B/op 3125804 allocs/op
+BenchmarkDecoderToken 1 215539901 ns/op 77.84 MB/s 123368792 B/op 3125804 allocs/op
+BenchmarkDecoderToken 1 215355996 ns/op 77.90 MB/s 123368736 B/op 3125803 allocs/op
+BenchmarkDecoderToken 1 214802644 ns/op 78.10 MB/s 123368728 B/op 3125804 allocs/op
+BenchmarkDecoderToken 1 215356179 ns/op 77.90 MB/s 123368800 B/op 3125804 allocs/op
+BenchmarkDecoderToken 1 214764426 ns/op 78.12 MB/s 123368808 B/op 3125804 allocs/op
+BenchmarkDecoderToken 1 215127678 ns/op 77.99 MB/s 123368744 B/op 3125804 allocs/op
+BenchmarkDecoderToken 1 214914860 ns/op 78.06 MB/s 123368832 B/op 3125804 allocs/op
+BenchmarkUnmarshal 1 314594925 ns/op 53.33 MB/s 207797400 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314730680 ns/op 53.31 MB/s 207797400 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314980984 ns/op 53.26 MB/s 207797392 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314695702 ns/op 53.31 MB/s 207797384 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314459808 ns/op 53.35 MB/s 207797408 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314654001 ns/op 53.32 MB/s 207797400 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314828689 ns/op 53.29 MB/s 207797416 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314326789 ns/op 53.37 MB/s 207797432 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314244794 ns/op 53.39 MB/s 207797400 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314689632 ns/op 53.31 MB/s 207797408 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314575636 ns/op 53.33 MB/s 207797408 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314712898 ns/op 53.31 MB/s 207797408 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 316668084 ns/op 52.98 MB/s 207797400 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314754810 ns/op 53.30 MB/s 207797400 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314572365 ns/op 53.33 MB/s 207797400 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314626456 ns/op 53.32 MB/s 207797400 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314533348 ns/op 53.34 MB/s 207797424 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314545586 ns/op 53.34 MB/s 207797448 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 314148422 ns/op 53.40 MB/s 207797400 B/op 4600375 allocs/op
+BenchmarkUnmarshal 1 315463988 ns/op 53.18 MB/s 207797408 B/op 4600375 allocs/op

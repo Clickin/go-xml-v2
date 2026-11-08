@@ -1,0 +1,35 @@
+goos: linux
+goarch: amd64
+pkg: encoding/xml
+cpu: 13th Gen Intel(R) Core(TM) i5-13600K
+                 │     none     │                xmlv2                │
+                 │    sec/op    │   sec/op     vs base                │
+DecoderToken       215.07m ± 0%   95.58m ± 0%  -55.56% (p=0.000 n=20)
+Unmarshal           314.6m ± 0%   130.6m ± 0%  -58.49% (p=0.000 n=20)
+XMLTextReadToken                  36.96m ± 0%
+V2Unmarshal                       77.02m ± 0%
+geomean             260.1m        77.21m       -57.05%
+
+                 │     none     │                 xmlv2                  │
+                 │     B/s      │      B/s       vs base                 │
+DecoderToken       74.40Mi ± 0%   167.39Mi ± 0%  +125.00% (p=0.000 n=20)
+Unmarshal          50.85Mi ± 0%   122.50Mi ± 0%  +140.90% (p=0.000 n=20)
+XMLTextReadToken                   432.9Mi ± 0%
+V2Unmarshal                        207.7Mi ± 0%
+geomean            61.51Mi         207.2Mi       +132.82%
+
+                 │     none      │                xmlv2                 │
+                 │     B/op      │     B/op      vs base                │
+DecoderToken       117.65Mi ± 0%   69.04Mi ± 0%  -41.32% (p=0.000 n=20)
+Unmarshal          198.17Mi ± 0%   72.08Mi ± 0%  -63.63% (p=0.000 n=20)
+XMLTextReadToken                   16.01Mi ± 0%
+V2Unmarshal                        64.25Mi ± 0%
+geomean             152.7Mi        47.56Mi       -53.80%
+
+                 │    none     │                xmlv2                │
+                 │  allocs/op  │  allocs/op   vs base                │
+DecoderToken       3.126M ± 0%   1.361M ± 0%  -56.46% (p=0.000 n=20)
+Unmarshal          4.600M ± 0%   1.025M ± 0%  -77.72% (p=0.000 n=20)
+XMLTextReadToken                  161.0 ± 0%
+V2Unmarshal                      563.6k ± 0%
+geomean            3.792M        106.1k       -68.86%

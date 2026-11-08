@@ -2,6 +2,17 @@
 
 Ubuntu live USB처럼 아무것도 없는 Linux에서 기존 `encoding/xml`과 `GOEXPERIMENT=xmlv2`를 같은 16 MiB 문서로 비교한다. 측정 내용은 [`../darwin-arm64`](../darwin-arm64/README.md)와 같다. 가상화가 없으므로 WSL 결과(`../linux-amd64`)의 오버헤드가 없다.
 
+## 결과 (2026-11-08)
+
+Intel i5-13600K, Ubuntu 26.04.1 live 세션(가상화 없음), `xml-v2-poc` c759c45a38, P-core 0–11 고정, governor `performance`, 20라운드. 전체 표와 측정 조건은 [`README.md`](README.md#results), 원시 결과는 [`results/20261108T070555Z`](results/20261108T070555Z)에 있다.
+
+| 케이스 | current | `GOEXPERIMENT=xmlv2` | current ÷ xmlv2 (라운드 쌍 중앙값, 최소–최대) |
+|---|---:|---:|---:|
+| `Decoder.Token` | 215.07 ms | 95.58 ms | 2.25× (2.24–2.26) |
+| `Unmarshal` | 314.64 ms | 130.61 ms | 2.41× (2.39–2.42) |
+
+케이스마다 프로세스 20개의 중앙값이 0.6–1.6% 안에 모였다. M4에서 보인 느린 모드 프로세스는 없었다.
+
 ## 준비
 
 - Ubuntu 24.04 Desktop ISO를 USB에 굽는다(Rufus, balenaEtcher, Ventoy 등).
